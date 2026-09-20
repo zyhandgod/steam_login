@@ -16,6 +16,9 @@ namespace SteamLoginLite
         private readonly Color _navy = Color.FromArgb(19, 28, 46);
         private readonly Color _blue = Color.FromArgb(67, 97, 238);
         private readonly Color _background = Color.FromArgb(244, 247, 251);
+        private readonly Color _surface = Color.White;
+        private readonly Color _border = Color.FromArgb(224, 230, 239);
+        private readonly Color _muted = Color.FromArgb(102, 116, 136);
         private readonly DataStore _store = new DataStore();
         private readonly SteamService _steam = new SteamService();
         private AppData _data;
@@ -59,26 +62,44 @@ namespace SteamLoginLite
 
         private void BuildShell()
         {
-            var sidebar = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = _navy, Padding = new Padding(18, 24, 18, 18) };
-            var brand = new Label { Text = "Steam切换器", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Height = 58, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
+            var sidebar = new Panel { Dock = DockStyle.Left, Width = 224, BackColor = _navy, Padding = new Padding(16, 20, 16, 18) };
+            var brand = new Panel { Height = 72, Dock = DockStyle.Top, BackColor = _navy, Padding = new Padding(42, 0, 0, 0) };
+            var brandTitle = new Label { Text = "Steam切换器", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Dock = DockStyle.Top, Height = 34, TextAlign = ContentAlignment.BottomLeft };
+            var brandCaption = new Label { Text = "ACCOUNT WORKSPACE", ForeColor = Color.FromArgb(137, 157, 187), Font = new Font(Font.FontFamily, 7.5F, FontStyle.Bold), Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.TopLeft };
+            brand.Controls.Add(brandCaption);
+            brand.Controls.Add(brandTitle);
+            brand.Paint += (_, e) =>
+            {
+                using (var brush = new SolidBrush(_blue)) e.Graphics.FillRectangle(brush, 0, 21, 24, 24);
+                using (var pen = new Pen(Color.FromArgb(180, 205, 255), 2))
+                {
+                    e.Graphics.DrawLine(pen, 7, 29, 17, 29);
+                    e.Graphics.DrawLine(pen, 7, 35, 17, 35);
+                }
+            };
             sidebar.Controls.Add(NavButton("设置", NavIcon.Settings, ShowSettingsPage));
             sidebar.Controls.Add(NavButton("批量导入", NavIcon.Import, ShowImportPage));
             sidebar.Controls.Add(NavButton("账号管理", NavIcon.Accounts, ShowAccountsPage));
             sidebar.Controls.Add(brand);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.White, Padding = new Padding(28, 0, 28, 0) };
-            _pageTitle.Dock = DockStyle.Left;
+            var header = new Panel { Dock = DockStyle.Top, Height = 78, BackColor = _surface, Padding = new Padding(30, 0, 28, 0) };
+            var pageIdentity = new Panel { Dock = DockStyle.Left, Width = 520 };
+            _pageTitle.Dock = DockStyle.Top;
             _pageTitle.AutoSize = false;
-            _pageTitle.Width = 500;
-            _pageTitle.TextAlign = ContentAlignment.MiddleLeft;
+            _pageTitle.Height = 46;
+            _pageTitle.TextAlign = ContentAlignment.BottomLeft;
             _pageTitle.Font = new Font(Font.FontFamily, 18, FontStyle.Bold);
             _pageTitle.ForeColor = _navy;
-            var portable = new Label { Text = "● 绿色便携版 · 数据仅保存在本机", Dock = DockStyle.Right, Width = 260, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(72, 91, 116) };
+            var pageSubtitle = new Label { Text = "管理登录凭据、查询状态与启动偏好", Dock = DockStyle.Bottom, Height = 24, TextAlign = ContentAlignment.TopLeft, ForeColor = _muted, Font = new Font(Font.FontFamily, 8.5F) };
+            pageIdentity.Controls.Add(pageSubtitle);
+            pageIdentity.Controls.Add(_pageTitle);
+            var portable = new Label { Text = "绿色便携版\r\n数据仅保存在本机", Dock = DockStyle.Right, Width = 190, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(72, 91, 116), Font = new Font(Font.FontFamily, 8.5F) };
+            portable.Paint += (_, e) => { using (var brush = new SolidBrush(Color.FromArgb(35, 171, 112))) e.Graphics.FillEllipse(brush, portable.Width - 86, 30, 7, 7); };
             header.Controls.Add(portable);
-            header.Controls.Add(_pageTitle);
+            header.Controls.Add(pageIdentity);
 
             _content.Dock = DockStyle.Fill;
-            _content.Padding = new Padding(26);
+            _content.Padding = new Padding(30, 24, 30, 28);
             _content.BackColor = _background;
             Controls.Add(_content);
             Controls.Add(header);
@@ -190,9 +211,11 @@ namespace SteamLoginLite
         private void ShowAccountsPage()
         {
             BeginPage("账号管理");
-            var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
-            _searchBox = new TextBox { Width = 230, Font = new Font(Font.FontFamily, 10), Margin = new Padding(0, 8, 12, 0) };
+            var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 56, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(0, 3, 0, 0) };
+            var searchLabel = new Label { Text = "筛选账号", AutoSize = true, Margin = new Padding(0, 13, 10, 0), ForeColor = _muted, Font = new Font(Font, FontStyle.Bold) };
+            _searchBox = new TextBox { Width = 250, Height = 34, Font = new Font(Font.FontFamily, 10), Margin = new Padding(0, 7, 14, 0), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
             _searchBox.TextChanged += (_, __) => RefreshAccounts();
+            toolbar.Controls.Add(searchLabel);
             toolbar.Controls.Add(_searchBox);
             toolbar.Controls.Add(ActionButton("批量查询", QueryChecked, false));
             toolbar.Controls.Add(ActionButton("批量删除", DeleteSelected, false));
@@ -215,7 +238,9 @@ namespace SteamLoginLite
                 var property = _accountsGrid.Columns[e.ColumnIndex].DataPropertyName;
                 if (property != "Status" || e.Value == null) return;
                 var status = e.Value.ToString();
-                e.CellStyle.ForeColor = status == "正常" ? Color.FromArgb(14, 159, 110) : status.Contains("封禁") ? Color.FromArgb(220, 53, 69) : Color.FromArgb(99, 115, 136);
+                var statusColor = status == "正常" ? Color.FromArgb(14, 159, 110) : status.Contains("封禁") ? Color.FromArgb(220, 53, 69) : Color.FromArgb(99, 115, 136);
+                e.CellStyle.ForeColor = statusColor;
+                e.CellStyle.BackColor = status == "正常" ? Color.FromArgb(239, 251, 245) : status.Contains("封禁") ? Color.FromArgb(255, 243, 244) : Color.FromArgb(247, 249, 252);
                 e.CellStyle.Font = new Font(Font, FontStyle.Bold);
             };
             _accountsGrid.CurrentCellDirtyStateChanged += (_, __) =>
@@ -242,7 +267,7 @@ namespace SteamLoginLite
 
         private Control CreateSummaryPanel()
         {
-            var panel = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 102, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+            var panel = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 106, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(0, 0, 0, 12) };
             panel.Controls.Add(StatCard("stat_total", "账号总数", _data.Accounts.Count.ToString(), _navy, ""));
             panel.Controls.Add(StatCard("stat_normal", "正常", _data.Accounts.Count(a => a.Status == "正常").ToString(), Color.FromArgb(14, 159, 110), "正常"));
             panel.Controls.Add(StatCard("stat_temp", "临时封禁", _data.Accounts.Count(a => a.Status == "临时封禁").ToString(), Color.FromArgb(220, 53, 69), "临时封禁"));
@@ -252,7 +277,13 @@ namespace SteamLoginLite
 
         private Control StatCard(string name, string title, string value, Color valueColor, string filter)
         {
-            var card = new Panel { Name = name + "_card", Width = 170, Height = 86, BackColor = Color.White, Margin = new Padding(0, 0, 14, 16), Padding = new Padding(16, 12, 16, 8), Cursor = Cursors.Hand, Tag = filter };
+            var card = new Panel { Name = name + "_card", Width = 178, Height = 88, BackColor = _surface, Margin = new Padding(0, 0, 14, 16), Padding = new Padding(16, 12, 16, 8), Cursor = Cursors.Hand, Tag = filter };
+            card.Paint += (_, e) =>
+            {
+                var selected = string.Equals(Convert.ToString(card.Tag), _statusFilter, StringComparison.Ordinal);
+                using (var pen = new Pen(selected ? _blue : _border, 1)) e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+                using (var brush = new SolidBrush(valueColor)) e.Graphics.FillRectangle(brush, 0, 0, 4, card.Height);
+            };
             var valueLabel = new Label { Name = name, Text = value, Dock = DockStyle.Bottom, Height = 34, Font = new Font(Font.FontFamily, 16, FontStyle.Bold), ForeColor = valueColor, Cursor = Cursors.Hand };
             var titleLabel = new Label { Text = title, Dock = DockStyle.Top, Height = 24, ForeColor = Color.FromArgb(99, 115, 136), Cursor = Cursors.Hand };
             Action applyFilter = () =>
@@ -280,16 +311,17 @@ namespace SteamLoginLite
                 var selected = string.Equals(Convert.ToString(card.Tag), _statusFilter, StringComparison.Ordinal);
                 card.BackColor = selected ? Color.FromArgb(240, 247, 255) : Color.White;
                 card.Padding = selected ? new Padding(16, 10, 16, 8) : new Padding(16, 12, 16, 8);
+                card.Invalidate();
             }
         }
 
         private void ShowImportPage()
         {
             BeginPage("批量导入");
-            var hint = new Label { Dock = DockStyle.Top, Height = 50, Text = "每行一个账号，支持中文标签格式以及 -- / --- / ---- 分隔。四段数据没有游戏ID时，自动使用Steam账号名。", ForeColor = Color.FromArgb(72, 91, 116) };
-            var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 210, IsSplitterFixed = false };
+            var hint = new Label { Dock = DockStyle.Top, Height = 50, Text = "每行一个账号，支持中文标签格式以及 -- / --- / ---- 分隔。四段数据没有游戏ID时，自动使用Steam账号名。", ForeColor = _muted, Padding = new Padding(0, 2, 0, 0) };
+            var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 220, IsSplitterFixed = false, BackColor = _background };
             _importText = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 10), BorderStyle = BorderStyle.FixedSingle };
-            var inputHost = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
+            var inputHost = new Panel { Dock = DockStyle.Fill, BackColor = _surface, Padding = new Padding(10) };
             var placeholder = new Label
             {
                 Text = "示例：账号----密码----邮箱----邮箱密码\r\n也支持中文标签格式，粘贴后点击“解析预览”",
@@ -308,7 +340,7 @@ namespace SteamLoginLite
             inputHost.Controls.Add(_importText);
             inputHost.Controls.Add(placeholder);
             placeholder.BringToFront();
-            var importActions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48 };
+            var importActions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 52, BackColor = _background, Padding = new Padding(0, 5, 0, 0) };
             importActions.Controls.Add(ActionButton("解析预览", ParsePreview, false));
             importActions.Controls.Add(ActionButton("导入有效账号", CommitImport, true));
             _previewCount = new Label { Text = "解析数量：0 条", AutoSize = true, Margin = new Padding(8, 13, 0, 0), ForeColor = Color.FromArgb(72, 91, 116), Font = new Font(Font, FontStyle.Bold) };
@@ -329,7 +361,8 @@ namespace SteamLoginLite
         private void ShowSettingsPage()
         {
             BeginPage("设置");
-            var card = new Panel { Dock = DockStyle.Top, Height = 430, BackColor = Color.White, Padding = new Padding(28) };
+            var card = new Panel { Dock = DockStyle.Top, Height = 430, BackColor = _surface, Padding = new Padding(28) };
+            card.Paint += (_, e) => { using (var pen = new Pen(_border)) e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1); };
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 7 };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -347,7 +380,7 @@ namespace SteamLoginLite
             layout.Controls.Add(FieldLabel("启动后操作"), 0, 2); layout.Controls.Add(_closeRecommendations, 1, 2);
             layout.Controls.Add(new Label(), 0, 3); layout.Controls.Add(_closeFriends, 1, 3);
             layout.Controls.Add(new Label(), 0, 4); layout.Controls.Add(_openLibrary, 1, 4);
-            var note = new Label { Text = "登录方式：完全退出旧 Steam 后，通过 steam.exe -login 启动。Steam Guard 和验证码仍由 Steam 官方窗口处理。", ForeColor = Color.FromArgb(72, 91, 116), AutoSize = true, Margin = new Padding(0, 15, 0, 0) };
+            var note = new Label { Text = "登录方式：完全退出旧 Steam 后，通过 steam.exe -login 启动。Steam Guard 和验证码仍由 Steam 官方窗口处理。", ForeColor = _muted, AutoSize = true, Margin = new Padding(0, 15, 0, 0) };
             layout.Controls.Add(note, 1, 5); layout.SetColumnSpan(note, 2);
             layout.Controls.Add(ActionButton("保存设置", SaveSettings, true), 1, 6);
             card.Controls.Add(layout);
@@ -541,8 +574,12 @@ namespace SteamLoginLite
 
         private Button ActionButton(string text, Action action, bool primary)
         {
-            var button = new Button { Text = text, AutoSize = true, Height = 34, MinimumSize = new Size(92, 34), Margin = new Padding(0, 5, 10, 5), FlatStyle = FlatStyle.Flat, BackColor = primary ? _blue : Color.White, ForeColor = primary ? Color.White : _navy, Cursor = Cursors.Hand };
-            button.FlatAppearance.BorderColor = primary ? _blue : Color.FromArgb(211, 220, 232);
+            var normal = primary ? _blue : _surface;
+            var hover = primary ? Color.FromArgb(56, 82, 210) : Color.FromArgb(245, 248, 252);
+            var button = new Button { Text = text, AutoSize = true, Height = 36, MinimumSize = new Size(92, 36), Margin = new Padding(0, 5, 10, 5), FlatStyle = FlatStyle.Flat, BackColor = normal, ForeColor = primary ? Color.White : _navy, Cursor = Cursors.Hand, Padding = new Padding(12, 0, 12, 0) };
+            button.FlatAppearance.BorderColor = primary ? _blue : _border;
+            button.FlatAppearance.MouseOverBackColor = hover;
+            button.FlatAppearance.MouseDownBackColor = primary ? Color.FromArgb(45, 68, 176) : Color.FromArgb(235, 240, 247);
             button.Click += (_, __) => action();
             return button;
         }
@@ -559,23 +596,24 @@ namespace SteamLoginLite
                 ReadOnly = !allowCheckEditing,
                 EditMode = DataGridViewEditMode.EditOnEnter,
                 MultiSelect = false,
-                SelectionMode = DataGridViewSelectionMode.CellSelect,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 RowHeadersVisible = false,
                 BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
                 CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
                 ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single,
-                GridColor = Color.FromArgb(240, 240, 240),
+                GridColor = Color.FromArgb(232, 236, 243),
+                AlternatingRowsDefaultCellStyle = { BackColor = Color.FromArgb(251, 252, 254) },
                 RowTemplate = { Height = 46 },
                 ColumnHeadersHeight = 44,
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
                 EnableHeadersVisualStyles = false,
                 ColumnHeadersDefaultCellStyle =
                 {
-                    BackColor = Color.FromArgb(250, 250, 250),
-                    SelectionBackColor = Color.FromArgb(250, 250, 250),
-                    ForeColor = Color.FromArgb(89, 89, 89),
-                    SelectionForeColor = Color.FromArgb(89, 89, 89),
+                    BackColor = Color.FromArgb(247, 249, 252),
+                    SelectionBackColor = Color.FromArgb(247, 249, 252),
+                    ForeColor = Color.FromArgb(65, 78, 98),
+                    SelectionForeColor = Color.FromArgb(65, 78, 98),
                     Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold),
                     Padding = new Padding(5, 0, 5, 0)
                 },
@@ -583,7 +621,7 @@ namespace SteamLoginLite
                 {
                     BackColor = Color.White,
                     ForeColor = Color.FromArgb(38, 38, 38),
-                    SelectionBackColor = Color.White,
+                    SelectionBackColor = Color.FromArgb(239, 245, 255),
                     SelectionForeColor = Color.FromArgb(38, 38, 38),
                     Padding = new Padding(5, 0, 5, 0)
                 }

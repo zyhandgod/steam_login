@@ -39,20 +39,23 @@ namespace SteamLoginLite
             MinimumSize = new Size(900, 620);
             StartPosition = FormStartPosition.CenterParent;
             Font = new Font("Microsoft YaHei UI", 9F);
+            BackColor = Color.FromArgb(244, 247, 251);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.White, Padding = new Padding(18, 8, 18, 8) };
+            var header = new Panel { Dock = DockStyle.Top, Height = 86, BackColor = Color.White, Padding = new Padding(22, 10, 22, 10) };
+            header.Paint += (_, e) => { using (var pen = new Pen(Color.FromArgb(224, 230, 239))) e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1); };
             _progress.Dock = DockStyle.Top;
-            _progress.Height = 28;
-            _progress.Font = new Font(Font, FontStyle.Bold);
+            _progress.Height = 32;
+            _progress.Font = new Font(Font.FontFamily, 10.5F, FontStyle.Bold);
             _progress.ForeColor = Color.FromArgb(19, 28, 46);
             _instruction.Dock = DockStyle.Bottom;
             _instruction.Height = 28;
             _instruction.Text = "查询 ID 已自动填写，请在网页中手动点击“查询”。网页返回结果后会自动保存等级和封禁状态。";
-            _instruction.ForeColor = Color.FromArgb(72, 91, 116);
+            _instruction.ForeColor = Color.FromArgb(102, 116, 136);
             header.Controls.Add(_instruction);
             header.Controls.Add(_progress);
 
             _web.Dock = DockStyle.Fill;
+            _web.BackColor = Color.FromArgb(244, 247, 251);
             Controls.Add(_web);
             Controls.Add(header);
             _fillTimer.Tick += async (_, __) => await FillCurrentIdAsync();
