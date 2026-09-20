@@ -12,6 +12,7 @@ Steam切换器
 - 切换账号会结束当前 Steam、PUBG 和相关进程，请先保存游戏进度。
 - Steam Guard、验证码和风控由 Steam 官方窗口处理，本工具不会绕过。
 - 查询弹窗使用系统中的 Microsoft Edge WebView2 Runtime；请使用 64 位 Windows，并完整解压压缩包后运行。
+- 如果电脑没有 WebView2 Runtime，程序会改用默认浏览器打开 PUBG.PLUS 并复制查询 ID；默认浏览器模式无法自动保存查询结果。
 - 账号数据保存在程序同目录的 data 文件夹，密码由 Windows 当前用户加密。
 - 删除整个文件夹即可卸载。
 - 查询结果来自 PUBG.PLUS，网页或接口暂时不可用时可稍后重试。

@@ -4,6 +4,7 @@
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/SteamSwitcher.ico</ApplicationIcon>
     <AssemblyName>SteamLoginLite</AssemblyName>
     <RootNamespace>SteamLoginLite</RootNamespace>
     <LangVersion>latest</LangVersion>

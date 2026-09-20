@@ -20,6 +20,8 @@
 - .NET Framework 4.8（Windows 10/11 通常已安装）
 - Microsoft Edge WebView2 Runtime（Windows 10/11 通常随 Edge 安装）
 
+如果未安装 WebView2 Runtime，程序会使用系统默认浏览器打开 PUBG.PLUS，并自动复制当前查询 ID。默认浏览器模式无法自动回填查询结果。
+
 ## 构建
 
 在装有 Visual Studio 2022 或 .NET SDK 的 Windows 上执行：

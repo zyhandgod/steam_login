@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -32,6 +33,7 @@ namespace SteamLoginLite
         {
             _gameIds = gameIds.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             Text = "PUBG.PLUS 等级与封禁查询";
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             Width = 1120;
             Height = 760;
             MinimumSize = new Size(900, 620);
@@ -78,16 +80,43 @@ namespace SteamLoginLite
                 UpdateProgress();
                 _web.Source = new Uri(PageUrl);
             }
-            catch (BadImageFormatException ex)
+            catch (Exception ex)
             {
-                MessageBox.Show("WebView2 架构不匹配。本版本已按 Windows x64 构建，请确认系统是 64 位并重新解压完整压缩包。\r\n\r\n" + ex.Message, "WebView2 架构错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Close();
+                OpenInDefaultBrowser(ex);
+            }
+        }
+
+        private void OpenInDefaultBrowser(Exception reason)
+        {
+            _fillTimer.Stop();
+            try
+            {
+                Process.Start(new ProcessStartInfo(PageUrl) { UseShellExecute = true });
+                var copied = false;
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(CurrentId))
+                    {
+                        Clipboard.SetText(CurrentId);
+                        copied = true;
+                    }
+                }
+                catch { }
+
+                MessageBox.Show(
+                    "当前电脑无法使用内置浏览器，已改用系统默认浏览器打开 PUBG.PLUS。" +
+                    (copied ? "\r\n当前查询 ID 已复制到剪贴板，可直接粘贴查询。" : "") +
+                    "\r\n\r\n默认浏览器中的查询结果无法自动回填到切换器；需要自动保存等级和封禁状态时，请安装 Microsoft Edge WebView2 Runtime。" +
+                    "\r\n\r\n原因：" + reason.Message,
+                    "已使用默认浏览器",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("无法启动 PUBG.PLUS 查询窗口。请确认 Microsoft Edge WebView2 Runtime 已安装，并且程序压缩包已完整解压。\r\n\r\n" + ex.Message, "WebView2 不可用", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Close();
+                MessageBox.Show("无法打开系统默认浏览器。\r\n\r\n" + ex.Message, "打开失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+            Close();
         }
 
         private async System.Threading.Tasks.Task FillCurrentIdAsync()

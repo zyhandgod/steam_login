@@ -38,6 +38,7 @@ namespace SteamLoginLite
         public MainForm()
         {
             Text = "Steam切换器";
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             Width = 1380;
             Height = 760;
             MinimumSize = new Size(1120, 640);
