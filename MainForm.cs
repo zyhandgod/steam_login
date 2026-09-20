@@ -112,6 +112,7 @@ namespace SteamLoginLite
             AddActionColumn(_accountsGrid, "LoginAction", "登录");
             AddActionColumn(_accountsGrid, "QueryAction", "查询");
             AddActionColumn(_accountsGrid, "EditAction", "编辑");
+            AddActionColumn(_accountsGrid, "DeleteAction", "删除", true);
             _accountsGrid.CellFormatting += (_, e) =>
             {
                 var property = _accountsGrid.Columns[e.ColumnIndex].DataPropertyName;
@@ -128,11 +129,12 @@ namespace SteamLoginLite
             {
                 if (e.RowIndex < 0) return;
                 var action = _accountsGrid.Columns[e.ColumnIndex].Name;
-                if (action != "LoginAction" && action != "QueryAction" && action != "EditAction") return;
+                if (action != "LoginAction" && action != "QueryAction" && action != "EditAction" && action != "DeleteAction") return;
                 var account = _accountsGrid.Rows[e.RowIndex].DataBoundItem as AccountRecord;
                 if (account == null) return;
                 if (action == "LoginAction") { await LoginAccountAsync(account); return; }
                 if (action == "EditAction") { EditAccount(account); return; }
+                if (action == "DeleteAction") { DeleteAccount(account); return; }
                 RunPubgPlusQuery(new List<AccountRecord> { account });
             };
             _content.Controls.Add(_accountsGrid);
@@ -190,13 +192,31 @@ namespace SteamLoginLite
             var hint = new Label { Dock = DockStyle.Top, Height = 50, Text = "每行一个账号，支持中文标签格式以及 -- / --- / ---- 分隔。四段数据没有游戏ID时，自动使用Steam账号名。", ForeColor = Color.FromArgb(72, 91, 116) };
             var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 210, IsSplitterFixed = false };
             _importText = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 10), BorderStyle = BorderStyle.FixedSingle };
-            _importText.Text = "示例：账号----密码----邮箱----邮箱密码\r\n也支持中文标签格式，粘贴后点击“解析预览”";
+            var inputHost = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
+            var placeholder = new Label
+            {
+                Text = "示例：账号----密码----邮箱----邮箱密码\r\n也支持中文标签格式，粘贴后点击“解析预览”",
+                AutoSize = true,
+                Location = new Point(7, 7),
+                BackColor = Color.White,
+                ForeColor = Color.FromArgb(140, 150, 164),
+                Font = new Font("Consolas", 10),
+                Cursor = Cursors.IBeam
+            };
+            Action updatePlaceholder = () => placeholder.Visible = _importText.TextLength == 0 && !_importText.Focused;
+            placeholder.Click += (_, __) => _importText.Focus();
+            _importText.Enter += (_, __) => placeholder.Visible = false;
+            _importText.Leave += (_, __) => updatePlaceholder();
+            _importText.TextChanged += (_, __) => updatePlaceholder();
+            inputHost.Controls.Add(_importText);
+            inputHost.Controls.Add(placeholder);
+            placeholder.BringToFront();
             var importActions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48 };
             importActions.Controls.Add(ActionButton("解析预览", ParsePreview, false));
             importActions.Controls.Add(ActionButton("导入有效账号", CommitImport, true));
             _previewCount = new Label { Text = "解析数量：0 条", AutoSize = true, Margin = new Padding(8, 13, 0, 0), ForeColor = Color.FromArgb(72, 91, 116), Font = new Font(Font, FontStyle.Bold) };
             importActions.Controls.Add(_previewCount);
-            split.Panel1.Controls.Add(_importText);
+            split.Panel1.Controls.Add(inputHost);
             split.Panel1.Controls.Add(importActions);
             _previewGrid = CreateGrid();
             AddColumn(_previewGrid, "行", "LineNumber", 50);
@@ -347,6 +367,15 @@ namespace SteamLoginLite
             SaveData(); RefreshAccounts();
         }
 
+        private void DeleteAccount(AccountRecord account)
+        {
+            if (MessageBox.Show("确定删除账号 “" + account.Username + "” 吗？", "删除账号", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            if (_data.CurrentAccountId == account.Id) _data.CurrentAccountId = "";
+            _data.Accounts.Remove(account);
+            SaveData();
+            RefreshAccounts();
+        }
+
         private void EditAccount(AccountRecord account)
         {
             using (var dialog = new AccountEditDialog(account))
@@ -464,7 +493,7 @@ namespace SteamLoginLite
             };
         }
 
-        private static void AddActionColumn(DataGridView grid, string name, string text) => grid.Columns.Add(new DataGridViewButtonColumn
+        private static void AddActionColumn(DataGridView grid, string name, string text, bool danger = false) => grid.Columns.Add(new DataGridViewButtonColumn
         {
             Name = name,
             HeaderText = text,
@@ -476,9 +505,9 @@ namespace SteamLoginLite
             DefaultCellStyle =
             {
                 BackColor = Color.White,
-                ForeColor = Color.FromArgb(19, 28, 46),
+                ForeColor = danger ? Color.FromArgb(220, 53, 69) : Color.FromArgb(19, 28, 46),
                 SelectionBackColor = Color.White,
-                SelectionForeColor = Color.FromArgb(19, 28, 46),
+                SelectionForeColor = danger ? Color.FromArgb(220, 53, 69) : Color.FromArgb(19, 28, 46),
                 Padding = new Padding(5, 7, 5, 7)
             }
         });

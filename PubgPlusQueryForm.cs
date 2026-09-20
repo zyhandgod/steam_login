@@ -137,7 +137,6 @@ namespace SteamLoginLite
             _index++;
             if (_index >= _gameIds.Count)
             {
-                MessageBox.Show("所选账号已查询完成，等级和封禁状态已经保存。", "查询完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 DialogResult = DialogResult.OK;
                 Close();
                 return;
