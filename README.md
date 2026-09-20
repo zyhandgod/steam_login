@@ -9,7 +9,7 @@
 - 账号密码方式切换 Steam，避免修改 `loginusers.vdf` 带来的长时间 Loading
 - 批量导入中文标签、`--`、`---`、`----` 等格式
 - 查询 ID 为空时自动使用 Steam 账号名
-- 通过轻量接口查询 PUBG 封禁状态，区分正常、临时封禁和永久封禁（等级查询暂未开放）
+- 在内置 PUBG.PLUS 弹窗中手动点击查询，自动保存等级和封禁状态
 - 保存最后登录、最后查询时间及查询结果
 - 登录后自动关闭推荐/新闻窗口、关闭好友列表、打开游戏库
 - 数据存储在 EXE 同目录，密码使用 Windows DPAPI 当前用户加密
@@ -18,6 +18,7 @@
 
 - Windows 10/11 x64
 - .NET Framework 4.8（Windows 10/11 通常已安装）
+- Microsoft Edge WebView2 Runtime（Windows 10/11 通常随 Edge 安装）
 
 ## 构建
 

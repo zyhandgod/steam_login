@@ -18,7 +18,6 @@ namespace SteamLoginLite
         private readonly Color _background = Color.FromArgb(244, 247, 251);
         private readonly DataStore _store = new DataStore();
         private readonly SteamService _steam = new SteamService();
-        private readonly BanQueryService _query = new BanQueryService();
         private AppData _data;
         private readonly Panel _content = new Panel();
         private readonly Label _pageTitle = new Label();
@@ -26,6 +25,7 @@ namespace SteamLoginLite
         private TextBox _searchBox;
         private TextBox _importText;
         private DataGridView _previewGrid;
+        private Label _previewCount;
         private List<ImportedAccount> _preview = new List<ImportedAccount>();
         private TextBox _steamPath;
         private NumericUpDown _startupDelay;
@@ -50,7 +50,7 @@ namespace SteamLoginLite
             SyncCurrentAccountFromSteam();
             BuildShell();
             ShowAccountsPage();
-            FormClosing += (_, __) => { _operation.Cancel(); _query.Dispose(); SaveData(false); };
+            FormClosing += (_, __) => { _operation.Cancel(); SaveData(false); };
         }
 
         private void BuildShell()
@@ -102,13 +102,13 @@ namespace SteamLoginLite
 
             _accountsGrid = CreateGrid(true);
             _accountsGrid.Columns.Add(new DataGridViewCheckBoxColumn { HeaderText = "选择", DataPropertyName = "UiSelected", Width = 48, ReadOnly = false });
-            AddColumn(_accountsGrid, "账号", "Username", 112);
-            AddColumn(_accountsGrid, "查询ID", "EffectiveGameId", 105);
-            AddColumn(_accountsGrid, "等级", "LevelText", 48);
-            AddColumn(_accountsGrid, "封禁状态", "Status", 86);
-            AddColumn(_accountsGrid, "最后登录", "LastLoginText", 116);
-            AddColumn(_accountsGrid, "最后查询", "LastQueryText", 116);
-            AddColumn(_accountsGrid, "备注", "Note", 160);
+            AddColumn(_accountsGrid, "账号", "Username", 125);
+            AddColumn(_accountsGrid, "查询ID", "EffectiveGameId", 125);
+            AddColumn(_accountsGrid, "等级", "LevelText", 55);
+            AddColumn(_accountsGrid, "封禁状态", "Status", 92);
+            AddColumn(_accountsGrid, "最后登录", "LastLoginText", 145);
+            AddColumn(_accountsGrid, "最后查询", "LastQueryText", 145);
+            AddColumn(_accountsGrid, "备注", "Note", 100);
             AddActionColumn(_accountsGrid, "LoginAction", "登录");
             AddActionColumn(_accountsGrid, "QueryAction", "查询");
             AddActionColumn(_accountsGrid, "EditAction", "编辑");
@@ -133,7 +133,7 @@ namespace SteamLoginLite
                 if (account == null) return;
                 if (action == "LoginAction") { await LoginAccountAsync(account); return; }
                 if (action == "EditAction") { EditAccount(account); return; }
-                await QueryAccountsAsync(new List<AccountRecord> { account });
+                RunPubgPlusQuery(new List<AccountRecord> { account });
             };
             _content.Controls.Add(_accountsGrid);
             _content.Controls.Add(toolbar);
@@ -194,6 +194,8 @@ namespace SteamLoginLite
             var importActions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48 };
             importActions.Controls.Add(ActionButton("解析预览", ParsePreview, false));
             importActions.Controls.Add(ActionButton("导入有效账号", CommitImport, true));
+            _previewCount = new Label { Text = "解析数量：0 条", AutoSize = true, Margin = new Padding(8, 13, 0, 0), ForeColor = Color.FromArgb(72, 91, 116), Font = new Font(Font, FontStyle.Bold) };
+            importActions.Controls.Add(_previewCount);
             split.Panel1.Controls.Add(_importText);
             split.Panel1.Controls.Add(importActions);
             _previewGrid = CreateGrid();
@@ -304,46 +306,31 @@ namespace SteamLoginLite
             catch (Exception ex) { MessageBox.Show(ex.Message, "启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
-        private async void QueryChecked()
+        private void QueryChecked()
         {
             var accounts = _data.Accounts.Where(a => a.UiSelected).ToList();
             if (accounts.Count == 0) { MessageBox.Show("请先勾选需要批量查询的账号。"); return; }
-            await QueryAccountsAsync(accounts);
+            RunPubgPlusQuery(accounts);
         }
 
-        private async Task QueryAccountsAsync(List<AccountRecord> accounts)
+        private void RunPubgPlusQuery(List<AccountRecord> accounts)
         {
-            var failures = new List<string>();
-            foreach (var account in accounts)
+            using (var dialog = new PubgPlusQueryForm(accounts.Select(a => a.EffectiveGameId)))
             {
-                account.Status = "查询中…";
-                RefreshAccounts();
-                try
+                dialog.ResultReceived += result =>
                 {
-                    var result = await _query.QueryAsync(account.EffectiveGameId, _operation.Token);
-                    account.Status = result.Status;
-                    account.RawStatus = result.Success ? result.RawStatus : result.Error;
-                    account.Level = null;
-                    account.LastQueryAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-                    if (!result.Success && !result.NotFound) failures.Add(account.Username + "：" + result.Error);
-                }
-                catch (OperationCanceledException) { account.Status = "未查询"; break; }
-                catch (Exception ex)
-                {
-                    account.Status = "查询失败";
-                    account.RawStatus = ex.Message;
-                    failures.Add(account.Username + "：" + ex.Message);
-                }
-                SaveData();
-                RefreshAccounts();
-                if (accounts.Count > 1 && _data.Settings.QueryIntervalMilliseconds > 0)
-                {
-                    try { await Task.Delay(_data.Settings.QueryIntervalMilliseconds, _operation.Token); }
-                    catch (OperationCanceledException) { break; }
-                }
+                    foreach (var account in accounts.Where(a => string.Equals(a.EffectiveGameId, result.GameId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        account.Status = result.Status;
+                        account.RawStatus = result.RawStatus;
+                        account.Level = result.Level;
+                        account.LastQueryAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                    }
+                    SaveData();
+                    RefreshAccounts();
+                };
+                dialog.ShowDialog(this);
             }
-            if (failures.Count > 0)
-                MessageBox.Show("有 " + failures.Count + " 个账号查询失败。接口可能暂时不可用，稍后可以重新查询。", "查询完成", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void DeleteSelected()
@@ -385,6 +372,8 @@ namespace SteamLoginLite
             _preview = ImportParser.Parse(_importText.Text);
             foreach (var item in _preview) if (item.IsValid) item.Error = "可导入";
             _previewGrid.DataSource = null; _previewGrid.DataSource = _preview;
+            var valid = _preview.Count(item => item.IsValid || item.Error == "可导入");
+            if (_previewCount != null) _previewCount.Text = "解析数量：" + _preview.Count + " 条（可导入 " + valid + " 条）";
         }
 
         private void CommitImport()
@@ -475,22 +464,26 @@ namespace SteamLoginLite
             };
         }
 
-        private static void AddActionColumn(DataGridView grid, string name, string text) => grid.Columns.Add(new DataGridViewLinkColumn
+        private static void AddActionColumn(DataGridView grid, string name, string text) => grid.Columns.Add(new DataGridViewButtonColumn
         {
             Name = name,
             HeaderText = text,
             Text = text,
-            UseColumnTextForLinkValue = true,
-            Width = 58,
+            UseColumnTextForButtonValue = true,
+            Width = 64,
             ReadOnly = true,
-            LinkColor = Color.FromArgb(22, 119, 255),
-            ActiveLinkColor = Color.FromArgb(9, 88, 217),
-            VisitedLinkColor = Color.FromArgb(22, 119, 255),
-            TrackVisitedState = false,
-            LinkBehavior = LinkBehavior.HoverUnderline
+            FlatStyle = FlatStyle.Flat,
+            DefaultCellStyle =
+            {
+                BackColor = Color.White,
+                ForeColor = Color.FromArgb(19, 28, 46),
+                SelectionBackColor = Color.White,
+                SelectionForeColor = Color.FromArgb(19, 28, 46),
+                Padding = new Padding(5, 7, 5, 7)
+            }
         });
 
-        private static void AddColumn(DataGridView grid, string header, string property, int width) => grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = header, DataPropertyName = property, Width = width, ReadOnly = true, AutoSizeMode = property == "Note" || property == "Error" ? DataGridViewAutoSizeColumnMode.Fill : DataGridViewAutoSizeColumnMode.None });
+        private static void AddColumn(DataGridView grid, string header, string property, int width) => grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = header, DataPropertyName = property, MinimumWidth = width, ReadOnly = true, AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells, SortMode = DataGridViewColumnSortMode.NotSortable });
         private Label FieldLabel(string text) => new Label { Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = _navy, Font = new Font(Font, FontStyle.Bold) };
         private CheckBox Option(string text, bool value) => new CheckBox { Text = text, Checked = value, AutoSize = true, Margin = new Padding(0, 15, 0, 0), ForeColor = _navy };
     }
