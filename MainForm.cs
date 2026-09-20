@@ -18,6 +18,7 @@ namespace SteamLoginLite
         private readonly Color _background = Color.FromArgb(244, 247, 251);
         private readonly DataStore _store = new DataStore();
         private readonly SteamService _steam = new SteamService();
+        private readonly BanQueryService _query = new BanQueryService();
         private AppData _data;
         private readonly Panel _content = new Panel();
         private readonly Label _pageTitle = new Label();
@@ -32,10 +33,11 @@ namespace SteamLoginLite
         private CheckBox _closeFriends;
         private CheckBox _openLibrary;
         private CancellationTokenSource _operation = new CancellationTokenSource();
+        private string _statusFilter = "";
 
         public MainForm()
         {
-            Text = "Steam Login Lite";
+            Text = "Steam切换器";
             Width = 1380;
             Height = 760;
             MinimumSize = new Size(1120, 640);
@@ -48,13 +50,13 @@ namespace SteamLoginLite
             SyncCurrentAccountFromSteam();
             BuildShell();
             ShowAccountsPage();
-            FormClosing += (_, __) => { _operation.Cancel(); SaveData(false); };
+            FormClosing += (_, __) => { _operation.Cancel(); _query.Dispose(); SaveData(false); };
         }
 
         private void BuildShell()
         {
             var sidebar = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = _navy, Padding = new Padding(18, 24, 18, 18) };
-            var brand = new Label { Text = "STEAM  LOGIN\nLITE", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Height = 72, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleLeft };
+            var brand = new Label { Text = "Steam切换器", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Height = 58, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
             sidebar.Controls.Add(NavButton("⚙  设置", ShowSettingsPage));
             sidebar.Controls.Add(NavButton("⇩  批量导入", ShowImportPage));
             sidebar.Controls.Add(NavButton("▦  账号管理", ShowAccountsPage));
@@ -107,9 +109,9 @@ namespace SteamLoginLite
             AddColumn(_accountsGrid, "最后登录", "LastLoginText", 116);
             AddColumn(_accountsGrid, "最后查询", "LastQueryText", 116);
             AddColumn(_accountsGrid, "备注", "Note", 160);
-            _accountsGrid.Columns.Add(new DataGridViewButtonColumn { Name = "LoginAction", HeaderText = "登录", Text = "登录", UseColumnTextForButtonValue = true, Width = 58, ReadOnly = true, FlatStyle = FlatStyle.Flat });
-            _accountsGrid.Columns.Add(new DataGridViewButtonColumn { Name = "QueryAction", HeaderText = "查询", Text = "查询", UseColumnTextForButtonValue = true, Width = 58, ReadOnly = true, FlatStyle = FlatStyle.Flat });
-            _accountsGrid.Columns.Add(new DataGridViewButtonColumn { Name = "EditAction", HeaderText = "编辑", Text = "编辑", UseColumnTextForButtonValue = true, Width = 58, ReadOnly = true, FlatStyle = FlatStyle.Flat });
+            AddActionColumn(_accountsGrid, "LoginAction", "登录");
+            AddActionColumn(_accountsGrid, "QueryAction", "查询");
+            AddActionColumn(_accountsGrid, "EditAction", "编辑");
             _accountsGrid.CellFormatting += (_, e) =>
             {
                 var property = _accountsGrid.Columns[e.ColumnIndex].DataPropertyName;
@@ -131,7 +133,7 @@ namespace SteamLoginLite
                 if (account == null) return;
                 if (action == "LoginAction") { await LoginAccountAsync(account); return; }
                 if (action == "EditAction") { EditAccount(account); return; }
-                RunPubgPlusQuery(new List<AccountRecord> { account });
+                await QueryAccountsAsync(new List<AccountRecord> { account });
             };
             _content.Controls.Add(_accountsGrid);
             _content.Controls.Add(toolbar);
@@ -142,19 +144,44 @@ namespace SteamLoginLite
         private Control CreateSummaryPanel()
         {
             var panel = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 102, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
-            panel.Controls.Add(StatCard("stat_total", "账号总数", _data.Accounts.Count.ToString(), _navy));
-            panel.Controls.Add(StatCard("stat_normal", "正常", _data.Accounts.Count(a => a.Status == "正常").ToString(), Color.FromArgb(14, 159, 110)));
-            panel.Controls.Add(StatCard("stat_temp", "临时封禁", _data.Accounts.Count(a => a.Status == "临时封禁").ToString(), Color.FromArgb(220, 53, 69)));
-            panel.Controls.Add(StatCard("stat_permanent", "永久封禁", _data.Accounts.Count(a => a.Status == "永久封禁").ToString(), Color.FromArgb(220, 53, 69)));
+            panel.Controls.Add(StatCard("stat_total", "账号总数", _data.Accounts.Count.ToString(), _navy, ""));
+            panel.Controls.Add(StatCard("stat_normal", "正常", _data.Accounts.Count(a => a.Status == "正常").ToString(), Color.FromArgb(14, 159, 110), "正常"));
+            panel.Controls.Add(StatCard("stat_temp", "临时封禁", _data.Accounts.Count(a => a.Status == "临时封禁").ToString(), Color.FromArgb(220, 53, 69), "临时封禁"));
+            panel.Controls.Add(StatCard("stat_permanent", "永久封禁", _data.Accounts.Count(a => a.Status == "永久封禁").ToString(), Color.FromArgb(220, 53, 69), "永久封禁"));
             return panel;
         }
 
-        private Control StatCard(string name, string title, string value, Color valueColor)
+        private Control StatCard(string name, string title, string value, Color valueColor, string filter)
         {
-            var card = new Panel { Width = 170, Height = 86, BackColor = Color.White, Margin = new Padding(0, 0, 14, 16), Padding = new Padding(16, 12, 16, 8) };
-            card.Controls.Add(new Label { Name = name, Text = value, Dock = DockStyle.Bottom, Height = 34, Font = new Font(Font.FontFamily, 16, FontStyle.Bold), ForeColor = valueColor });
-            card.Controls.Add(new Label { Text = title, Dock = DockStyle.Top, Height = 24, ForeColor = Color.FromArgb(99, 115, 136) });
+            var card = new Panel { Name = name + "_card", Width = 170, Height = 86, BackColor = Color.White, Margin = new Padding(0, 0, 14, 16), Padding = new Padding(16, 12, 16, 8), Cursor = Cursors.Hand, Tag = filter };
+            var valueLabel = new Label { Name = name, Text = value, Dock = DockStyle.Bottom, Height = 34, Font = new Font(Font.FontFamily, 16, FontStyle.Bold), ForeColor = valueColor, Cursor = Cursors.Hand };
+            var titleLabel = new Label { Text = title, Dock = DockStyle.Top, Height = 24, ForeColor = Color.FromArgb(99, 115, 136), Cursor = Cursors.Hand };
+            Action applyFilter = () =>
+            {
+                _statusFilter = filter;
+                UpdateStatCardSelection();
+                RefreshAccounts();
+            };
+            card.Click += (_, __) => applyFilter();
+            valueLabel.Click += (_, __) => applyFilter();
+            titleLabel.Click += (_, __) => applyFilter();
+            card.Controls.Add(valueLabel);
+            card.Controls.Add(titleLabel);
             return card;
+        }
+
+        private void UpdateStatCardSelection()
+        {
+            foreach (var key in new[] { "stat_total", "stat_normal", "stat_temp", "stat_permanent" })
+            {
+                var matches = _content.Controls.Find(key + "_card", true);
+                if (matches.Length == 0) continue;
+                var card = matches[0] as Panel;
+                if (card == null) continue;
+                var selected = string.Equals(Convert.ToString(card.Tag), _statusFilter, StringComparison.Ordinal);
+                card.BackColor = selected ? Color.FromArgb(240, 247, 255) : Color.White;
+                card.Padding = selected ? new Padding(16, 10, 16, 8) : new Padding(16, 12, 16, 8);
+            }
         }
 
         private void ShowImportPage()
@@ -221,21 +248,25 @@ namespace SteamLoginLite
             if (_accountsGrid == null) return;
             foreach (var account in _data.Accounts) account.UiIsCurrent = account.Id == _data.CurrentAccountId;
             var term = (_searchBox?.Text ?? "").Trim();
-            var items = _data.Accounts.Where(a => term.Length == 0 || a.Username.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.EffectiveGameId.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.Status.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+            var items = _data.Accounts.Where(a =>
+                (string.IsNullOrEmpty(_statusFilter) || a.Status == _statusFilter) &&
+                (term.Length == 0 || a.Username.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.EffectiveGameId.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.Status.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)).ToList();
             _accountsGrid.DataSource = null;
             _accountsGrid.DataSource = items;
             foreach (DataGridViewRow row in _accountsGrid.Rows)
             {
                 var account = row.DataBoundItem as AccountRecord;
                 if (account == null || !account.UiIsCurrent) continue;
-                row.DefaultCellStyle.BackColor = Color.FromArgb(225, 248, 239);
-                row.DefaultCellStyle.SelectionBackColor = Color.FromArgb(198, 239, 223);
+                row.DefaultCellStyle.BackColor = Color.FromArgb(246, 255, 237);
+                row.DefaultCellStyle.SelectionBackColor = Color.FromArgb(246, 255, 237);
+                row.DefaultCellStyle.SelectionForeColor = Color.FromArgb(38, 38, 38);
                 row.DefaultCellStyle.Font = new Font(Font, FontStyle.Bold);
             }
             SetStat("stat_total", _data.Accounts.Count);
             SetStat("stat_normal", _data.Accounts.Count(a => a.Status == "正常"));
             SetStat("stat_temp", _data.Accounts.Count(a => a.Status == "临时封禁"));
             SetStat("stat_permanent", _data.Accounts.Count(a => a.Status == "永久封禁"));
+            UpdateStatCardSelection();
         }
 
         private void SetStat(string name, int value)
@@ -273,31 +304,46 @@ namespace SteamLoginLite
             catch (Exception ex) { MessageBox.Show(ex.Message, "启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
-        private void QueryChecked()
+        private async void QueryChecked()
         {
             var accounts = _data.Accounts.Where(a => a.UiSelected).ToList();
             if (accounts.Count == 0) { MessageBox.Show("请先勾选需要批量查询的账号。"); return; }
-            RunPubgPlusQuery(accounts);
+            await QueryAccountsAsync(accounts);
         }
 
-        private void RunPubgPlusQuery(List<AccountRecord> accounts)
+        private async Task QueryAccountsAsync(List<AccountRecord> accounts)
         {
-            using (var dialog = new PubgPlusQueryForm(accounts.Select(a => a.EffectiveGameId)))
+            var failures = new List<string>();
+            foreach (var account in accounts)
             {
-                dialog.ResultReceived += result =>
+                account.Status = "查询中…";
+                RefreshAccounts();
+                try
                 {
-                    foreach (var account in accounts.Where(a => string.Equals(a.EffectiveGameId, result.GameId, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        account.Status = result.Status;
-                        account.RawStatus = result.RawStatus;
-                        account.Level = result.Level;
-                        account.LastQueryAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-                    }
-                    SaveData();
-                    RefreshAccounts();
-                };
-                dialog.ShowDialog(this);
+                    var result = await _query.QueryAsync(account.EffectiveGameId, _operation.Token);
+                    account.Status = result.Status;
+                    account.RawStatus = result.Success ? result.RawStatus : result.Error;
+                    account.Level = null;
+                    account.LastQueryAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                    if (!result.Success && !result.NotFound) failures.Add(account.Username + "：" + result.Error);
+                }
+                catch (OperationCanceledException) { account.Status = "未查询"; break; }
+                catch (Exception ex)
+                {
+                    account.Status = "查询失败";
+                    account.RawStatus = ex.Message;
+                    failures.Add(account.Username + "：" + ex.Message);
+                }
+                SaveData();
+                RefreshAccounts();
+                if (accounts.Count > 1 && _data.Settings.QueryIntervalMilliseconds > 0)
+                {
+                    try { await Task.Delay(_data.Settings.QueryIntervalMilliseconds, _operation.Token); }
+                    catch (OperationCanceledException) { break; }
+                }
             }
+            if (failures.Count > 0)
+                MessageBox.Show("有 " + failures.Count + " 个账号查询失败。接口可能暂时不可用，稍后可以重新查询。", "查询完成", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void DeleteSelected()
@@ -388,8 +434,61 @@ namespace SteamLoginLite
 
         private DataGridView CreateGrid(bool allowCheckEditing = false)
         {
-            return new DataGridView { Dock = DockStyle.Fill, AutoGenerateColumns = false, AllowUserToAddRows = false, AllowUserToDeleteRows = false, ReadOnly = !allowCheckEditing, EditMode = DataGridViewEditMode.EditOnEnter, MultiSelect = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect, RowHeadersVisible = false, BackgroundColor = Color.White, BorderStyle = BorderStyle.None, GridColor = Color.FromArgb(231, 236, 243), RowTemplate = { Height = 42 }, ColumnHeadersHeight = 42, EnableHeadersVisualStyles = false, ColumnHeadersDefaultCellStyle = { BackColor = Color.FromArgb(237, 241, 247), ForeColor = Color.FromArgb(57, 72, 95), Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold) }, DefaultCellStyle = { SelectionBackColor = Color.FromArgb(226, 233, 255), SelectionForeColor = _navy, Padding = new Padding(5, 0, 5, 0) } };
+            return new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                AutoGenerateColumns = false,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                AllowUserToResizeRows = false,
+                ReadOnly = !allowCheckEditing,
+                EditMode = DataGridViewEditMode.EditOnEnter,
+                MultiSelect = false,
+                SelectionMode = DataGridViewSelectionMode.CellSelect,
+                RowHeadersVisible = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+                ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single,
+                GridColor = Color.FromArgb(240, 240, 240),
+                RowTemplate = { Height = 46 },
+                ColumnHeadersHeight = 44,
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
+                EnableHeadersVisualStyles = false,
+                ColumnHeadersDefaultCellStyle =
+                {
+                    BackColor = Color.FromArgb(250, 250, 250),
+                    SelectionBackColor = Color.FromArgb(250, 250, 250),
+                    ForeColor = Color.FromArgb(89, 89, 89),
+                    SelectionForeColor = Color.FromArgb(89, 89, 89),
+                    Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold),
+                    Padding = new Padding(5, 0, 5, 0)
+                },
+                DefaultCellStyle =
+                {
+                    BackColor = Color.White,
+                    ForeColor = Color.FromArgb(38, 38, 38),
+                    SelectionBackColor = Color.White,
+                    SelectionForeColor = Color.FromArgb(38, 38, 38),
+                    Padding = new Padding(5, 0, 5, 0)
+                }
+            };
         }
+
+        private static void AddActionColumn(DataGridView grid, string name, string text) => grid.Columns.Add(new DataGridViewLinkColumn
+        {
+            Name = name,
+            HeaderText = text,
+            Text = text,
+            UseColumnTextForLinkValue = true,
+            Width = 58,
+            ReadOnly = true,
+            LinkColor = Color.FromArgb(22, 119, 255),
+            ActiveLinkColor = Color.FromArgb(9, 88, 217),
+            VisitedLinkColor = Color.FromArgb(22, 119, 255),
+            TrackVisitedState = false,
+            LinkBehavior = LinkBehavior.HoverUnderline
+        });
 
         private static void AddColumn(DataGridView grid, string header, string property, int width) => grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = header, DataPropertyName = property, Width = width, ReadOnly = true, AutoSizeMode = property == "Note" || property == "Error" ? DataGridViewAutoSizeColumnMode.Fill : DataGridViewAutoSizeColumnMode.None });
         private Label FieldLabel(string text) => new Label { Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = _navy, Font = new Font(Font, FontStyle.Bold) };

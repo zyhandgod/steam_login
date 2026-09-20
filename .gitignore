@@ -9,3 +9,4 @@ data/
 release/
 design-preview/
 docs/screenshots/
+.DS_Store
