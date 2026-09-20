@@ -58,9 +58,9 @@ namespace SteamLoginLite
         {
             var sidebar = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = _navy, Padding = new Padding(18, 24, 18, 18) };
             var brand = new Label { Text = "Steam切换器", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Height = 58, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
-            sidebar.Controls.Add(NavButton("⚙  设置", ShowSettingsPage));
-            sidebar.Controls.Add(NavButton("⇩  批量导入", ShowImportPage));
-            sidebar.Controls.Add(NavButton("▦  账号管理", ShowAccountsPage));
+            sidebar.Controls.Add(NavButton("设置", ShowSettingsPage));
+            sidebar.Controls.Add(NavButton("批量导入", ShowImportPage));
+            sidebar.Controls.Add(NavButton("账号管理", ShowAccountsPage));
             sidebar.Controls.Add(brand);
 
             var header = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.White, Padding = new Padding(28, 0, 28, 0) };
