@@ -1,0 +1,11 @@
+bin/
+obj/
+**/bin/
+**/obj/
+.vs/
+data/
+*.user
+*.suo
+release/
+design-preview/
+docs/screenshots/

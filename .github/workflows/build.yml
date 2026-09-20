@@ -1,0 +1,22 @@
+name: build-windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore
+      - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
+      - run: dotnet build -c Release --no-restore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SteamLoginLite-win-x64
+          path: bin/Release/net48/**
