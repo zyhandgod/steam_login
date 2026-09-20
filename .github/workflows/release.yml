@@ -17,7 +17,9 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - name: Restore
-        run: dotnet restore
+        run: |
+          dotnet restore
+          dotnet restore tests/ParserSmoke/ParserSmoke.csproj
       - name: Test import and status mapping
         run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj --no-restore
       - name: Build Windows app
