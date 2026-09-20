@@ -34,6 +34,8 @@ namespace SteamLoginLite
         private CheckBox _openLibrary;
         private CancellationTokenSource _operation = new CancellationTokenSource();
         private string _statusFilter = "";
+        private readonly List<Button> _navButtons = new List<Button>();
+        private Button _activeNavButton;
 
         public MainForm()
         {
@@ -50,6 +52,7 @@ namespace SteamLoginLite
             if (string.IsNullOrWhiteSpace(_data.Settings.SteamPath)) _data.Settings.SteamPath = SteamService.FindSteamPath();
             SyncCurrentAccountFromSteam();
             BuildShell();
+            if (_navButtons.Count > 0) SetActiveNav(_navButtons[_navButtons.Count - 1]);
             ShowAccountsPage();
             FormClosing += (_, __) => { _operation.Cancel(); SaveData(false); };
         }
@@ -58,9 +61,9 @@ namespace SteamLoginLite
         {
             var sidebar = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = _navy, Padding = new Padding(18, 24, 18, 18) };
             var brand = new Label { Text = "Steam切换器", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Height = 58, Dock = DockStyle.Top, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
-            sidebar.Controls.Add(NavButton("设置", ShowSettingsPage));
-            sidebar.Controls.Add(NavButton("批量导入", ShowImportPage));
-            sidebar.Controls.Add(NavButton("账号管理", ShowAccountsPage));
+            sidebar.Controls.Add(NavButton("设置", NavIcon.Settings, ShowSettingsPage));
+            sidebar.Controls.Add(NavButton("批量导入", NavIcon.Import, ShowImportPage));
+            sidebar.Controls.Add(NavButton("账号管理", NavIcon.Accounts, ShowAccountsPage));
             sidebar.Controls.Add(brand);
 
             var header = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.White, Padding = new Padding(28, 0, 28, 0) };
@@ -82,13 +85,106 @@ namespace SteamLoginLite
             Controls.Add(sidebar);
         }
 
-        private Button NavButton(string text, Action action)
+        private enum NavIcon { Accounts, Import, Settings }
+
+        private static readonly Color NavTextIdle = Color.FromArgb(186, 196, 212);
+        private static readonly Color NavTextActive = Color.White;
+        private static readonly Color NavHover = Color.FromArgb(32, 45, 69);
+        private static readonly Color NavActiveBackground = Color.FromArgb(29, 41, 66);
+
+        private Button NavButton(string text, NavIcon icon, Action action)
         {
-            var button = new Button { Text = text, Dock = DockStyle.Top, Height = 52, FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(218, 225, 236), BackColor = _navy, Cursor = Cursors.Hand, Padding = new Padding(8, 0, 0, 0) };
+            var button = new Button
+            {
+                Text = text,
+                Dock = DockStyle.Top,
+                Height = 48,
+                FlatStyle = FlatStyle.Flat,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = NavTextIdle,
+                BackColor = _navy,
+                Cursor = Cursors.Hand,
+                Padding = new Padding(38, 0, 0, 0),
+                Margin = new Padding(0, 0, 0, 2),
+                Tag = icon
+            };
             button.FlatAppearance.BorderSize = 0;
-            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(32, 45, 69);
-            button.Click += (_, __) => action();
+            button.FlatAppearance.MouseOverBackColor = NavHover;
+            button.FlatAppearance.MouseDownBackColor = NavActiveBackground;
+            button.Paint += (sender, e) =>
+            {
+                var owner = (Button)sender;
+                var active = ReferenceEquals(owner, _activeNavButton);
+                if (active)
+                {
+                    using (var accent = new SolidBrush(_blue))
+                        e.Graphics.FillRectangle(accent, 0, (owner.Height - 20) / 2, 3, 20);
+                }
+                DrawNavIcon(e.Graphics, icon, new Rectangle(13, (owner.Height - 16) / 2, 16, 16), owner.ForeColor);
+            };
+            button.Click += (sender, __) => { SetActiveNav((Button)sender); action(); };
+            _navButtons.Add(button);
             return button;
+        }
+
+        private void SetActiveNav(Button button)
+        {
+            _activeNavButton = button;
+            foreach (var item in _navButtons)
+            {
+                var active = ReferenceEquals(item, button);
+                item.ForeColor = active ? NavTextActive : NavTextIdle;
+                item.BackColor = active ? NavActiveBackground : _navy;
+                item.Font = new Font(item.Font, active ? FontStyle.Bold : FontStyle.Regular);
+                item.Invalidate();
+            }
+        }
+
+        private static void DrawNavIcon(Graphics graphics, NavIcon icon, Rectangle bounds, Color color)
+        {
+            var previousMode = graphics.SmoothingMode;
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var x = bounds.X;
+            var y = bounds.Y;
+            var size = (float)bounds.Width;
+            using (var pen = new Pen(color, 1.5f)
+            {
+                StartCap = System.Drawing.Drawing2D.LineCap.Round,
+                EndCap = System.Drawing.Drawing2D.LineCap.Round,
+                LineJoin = System.Drawing.Drawing2D.LineJoin.Round
+            })
+            {
+                if (icon == NavIcon.Accounts)
+                {
+                    // 人像：头 + 肩弧
+                    graphics.DrawEllipse(pen, x + size * 0.32f, y + size * 0.10f, size * 0.36f, size * 0.36f);
+                    graphics.DrawArc(pen, x + size * 0.17f, y + size * 0.56f, size * 0.66f, size * 0.48f, 180, 180);
+                }
+                else if (icon == NavIcon.Import)
+                {
+                    // 下载：竖线 + V 形箭头 + 托盘
+                    graphics.DrawLine(pen, x + size * 0.50f, y + size * 0.10f, x + size * 0.50f, y + size * 0.60f);
+                    graphics.DrawLines(pen, new[]
+                    {
+                        new PointF(x + size * 0.28f, y + size * 0.40f),
+                        new PointF(x + size * 0.50f, y + size * 0.63f),
+                        new PointF(x + size * 0.72f, y + size * 0.40f)
+                    });
+                    graphics.DrawLine(pen, x + size * 0.16f, y + size * 0.86f, x + size * 0.84f, y + size * 0.86f);
+                }
+                else
+                {
+                    // 设置：双滑杆 + 滑块
+                    graphics.DrawLine(pen, x + size * 0.12f, y + size * 0.30f, x + size * 0.88f, y + size * 0.30f);
+                    graphics.DrawLine(pen, x + size * 0.12f, y + size * 0.70f, x + size * 0.88f, y + size * 0.70f);
+                    using (var brush = new SolidBrush(color))
+                    {
+                        graphics.FillEllipse(brush, x + size * 0.25f, y + size * 0.17f, size * 0.26f, size * 0.26f);
+                        graphics.FillEllipse(brush, x + size * 0.51f, y + size * 0.57f, size * 0.26f, size * 0.26f);
+                    }
+                }
+            }
+            graphics.SmoothingMode = previousMode;
         }
 
         private void ShowAccountsPage()
