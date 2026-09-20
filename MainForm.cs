@@ -239,8 +239,11 @@ namespace SteamLoginLite
                 if (property != "Status" || e.Value == null) return;
                 var status = e.Value.ToString();
                 var statusColor = status == "正常" ? Color.FromArgb(14, 159, 110) : status.Contains("封禁") ? Color.FromArgb(220, 53, 69) : Color.FromArgb(99, 115, 136);
+                var statusBackground = status == "正常" ? Color.FromArgb(239, 251, 245) : status.Contains("封禁") ? Color.FromArgb(255, 243, 244) : Color.FromArgb(247, 249, 252);
                 e.CellStyle.ForeColor = statusColor;
-                e.CellStyle.BackColor = status == "正常" ? Color.FromArgb(239, 251, 245) : status.Contains("封禁") ? Color.FromArgb(255, 243, 244) : Color.FromArgb(247, 249, 252);
+                e.CellStyle.SelectionForeColor = statusColor;
+                e.CellStyle.BackColor = statusBackground;
+                e.CellStyle.SelectionBackColor = statusBackground;
                 e.CellStyle.Font = new Font(Font, FontStyle.Bold);
             };
             _accountsGrid.CurrentCellDirtyStateChanged += (_, __) =>
