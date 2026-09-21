@@ -39,7 +39,6 @@ public sealed partial class QueryWindow : Window
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(hwnd));
         appWindow.Resize(new SizeInt32(1120, 760));
-        appWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "SteamSwitcher.ico"));
         appWindow.Closing += (_, __) => _fillTimer.Stop();
     }
 

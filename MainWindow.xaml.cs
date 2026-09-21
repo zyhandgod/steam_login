@@ -40,7 +40,6 @@ public sealed partial class MainWindow : Window
         var id = Win32Interop.GetWindowIdFromWindow(hwnd);
         var appWindow = AppWindow.GetFromWindowId(id);
         appWindow.Resize(new SizeInt32(1360, 760));
-        appWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "SteamSwitcher.ico"));
         appWindow.Closing += (_, __) => { _operation.Cancel(); SaveData(false); };
     }
 
