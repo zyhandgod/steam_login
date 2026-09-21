@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Steam切换器" Icon="/Assets/SteamSwitcher.png" Width="1440" Height="860" MinWidth="1080" MinHeight="700"
         WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True"
-        ResizeMode="CanResizeWithGrip" Background="Transparent" FontFamily="Microsoft YaHei UI">
+        ResizeMode="CanResizeWithGrip" Background="Transparent" Foreground="{StaticResource TextBrush}" FontFamily="Microsoft YaHei UI">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
         <Style x:Key="TitleBarButton" TargetType="Button">
@@ -130,16 +130,16 @@
                     </Grid>
                     <Border Grid.Row="2" Style="{StaticResource CardBorder}" Padding="1">
                         <DataGrid x:Name="AccountsGrid" Style="{StaticResource ModernDataGrid}" ItemsSource="{Binding Accounts}" IsReadOnly="False" SizeChanged="AccountsGrid_SizeChanged">
-                            <DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding UiIsCurrent}" Value="True"><Setter Property="Background" Value="#F6FAF0" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
+                            <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="VerticalContentAlignment" Value="Center" /><Style.Triggers><DataTrigger Binding="{Binding UiIsCurrent}" Value="True"><Setter Property="Background" Value="#F6FAF0" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
                             <DataGrid.Columns>
                                 <DataGridTemplateColumn Header="选择" Width="52"><DataGridTemplateColumn.CellTemplate><DataTemplate><CheckBox IsChecked="{Binding UiSelected, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="账号" Width="1.3*" MinWidth="154"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Border Background="{StaticResource AccentBrush}" CornerRadius="6" Padding="7,3" Margin="0,0,8,0" VerticalAlignment="Center" Visibility="{Binding UiIsCurrent, Converter={StaticResource BooleanToVisibility}}"><TextBlock Text="当前" Foreground="White" FontSize="10" TextWrapping="NoWrap" /></Border><TextBlock Grid.Column="1" Text="{Binding Username}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Username}" /><Button Grid.Column="2" Style="{StaticResource LinkButton}" Content="⧉" Tag="{Binding Username}" ToolTip="复制账号" Click="CopyValue_Click" Padding="5" Margin="2,0,0,0" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="查询 ID" Width="1.2*" MinWidth="142"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding EffectiveGameId}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding EffectiveGameId}" /><Button Grid.Column="1" Style="{StaticResource LinkButton}" Content="⧉" Tag="{Binding EffectiveGameId}" ToolTip="复制查询 ID" Click="CopyValue_Click" Padding="5" Margin="2,0,0,0" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTextColumn Header="等级" Binding="{Binding LevelText}" Width="62" IsReadOnly="True" />
+                                <DataGridTextColumn Header="等级" Binding="{Binding LevelText}" Width="62" IsReadOnly="True" ElementStyle="{StaticResource CenteredDataGridText}" />
                                 <DataGridTemplateColumn Header="封禁状态" Width="108">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Border x:Name="StatusChip" CornerRadius="7" Padding="9,4" HorizontalAlignment="Left" Background="#EEF2F7">
+                                            <Border x:Name="StatusChip" CornerRadius="7" Padding="9,4" HorizontalAlignment="Left" VerticalAlignment="Center" Background="#EEF2F7">
                                                 <TextBlock x:Name="StatusText" Text="{Binding Status}" Foreground="#5E6D83" FontWeight="SemiBold" FontSize="11" />
                                             </Border>
                                             <DataTemplate.Triggers>
@@ -150,10 +150,10 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn x:Name="LastLoginColumn" Header="最后登录" Binding="{Binding LastLoginText}" Width="112" IsReadOnly="True" />
-                                <DataGridTextColumn x:Name="LastQueryColumn" Header="最后查询" Binding="{Binding LastQueryText}" Width="112" IsReadOnly="True" />
+                                <DataGridTextColumn x:Name="LastLoginColumn" Header="最后登录" Binding="{Binding LastLoginText}" Width="112" IsReadOnly="True" ElementStyle="{StaticResource CenteredDataGridText}" />
+                                <DataGridTextColumn x:Name="LastQueryColumn" Header="最后查询" Binding="{Binding LastQueryText}" Width="112" IsReadOnly="True" ElementStyle="{StaticResource CenteredDataGridText}" />
                                 <DataGridTemplateColumn x:Name="NoteColumn" Header="备注" Width="1.05*" MinWidth="120"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Note}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Note}" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="操作" Width="222"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid HorizontalAlignment="Left"><Grid.ColumnDefinitions><ColumnDefinition Width="52" /><ColumnDefinition Width="48" /><ColumnDefinition Width="48" /><ColumnDefinition Width="58" /></Grid.ColumnDefinitions><Button Style="{StaticResource PrimaryButton}" Content="登录" Height="36" Padding="0" Margin="0,0,5,0" Tag="{Binding}" Click="Login_Click" /><Button Grid.Column="1" Style="{StaticResource TableActionButton}" Content="查询" Tag="{Binding}" Click="Query_Click" Margin="0,0,4,0" /><Button Grid.Column="2" Style="{StaticResource TableActionButton}" Content="编辑" Tag="{Binding}" Click="Edit_Click" Margin="0,0,4,0" /><Button Grid.Column="3" Style="{StaticResource DangerButton}" Content="删除" Height="36" Padding="0" Tag="{Binding}" Click="Delete_Click" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="操作" Width="222"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid HorizontalAlignment="Left" VerticalAlignment="Center"><Grid.ColumnDefinitions><ColumnDefinition Width="52" /><ColumnDefinition Width="48" /><ColumnDefinition Width="48" /><ColumnDefinition Width="58" /></Grid.ColumnDefinitions><Button Style="{StaticResource PrimaryButton}" Content="登录" Height="36" Padding="0" Margin="0,0,5,0" Tag="{Binding}" Click="Login_Click" /><Button Grid.Column="1" Style="{StaticResource TableActionButton}" Content="查询" Tag="{Binding}" Click="Query_Click" Margin="0,0,4,0" /><Button Grid.Column="2" Style="{StaticResource TableActionButton}" Content="编辑" Tag="{Binding}" Click="Edit_Click" Margin="0,0,4,0" /><Button Grid.Column="3" Style="{StaticResource DangerButton}" Content="删除" Height="36" Padding="0" Tag="{Binding}" Click="Delete_Click" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Border>
@@ -176,10 +176,10 @@
                             <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
                                 <DataGrid x:Name="PreviewGrid" Style="{StaticResource ModernDataGrid}" ItemsSource="{Binding Preview}" IsReadOnly="True">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="行" Binding="{Binding LineNumber}" Width="52" />
-                                        <DataGridTextColumn Header="Steam账号" Binding="{Binding Username}" Width="1.1*" />
-                                        <DataGridTextColumn Header="邮箱" Binding="{Binding Email}" Width="1.2*" />
-                                        <DataGridTextColumn Header="查询 ID" Binding="{Binding GameId}" Width="1.1*" />
+                                        <DataGridTextColumn Header="行" Binding="{Binding LineNumber}" Width="52" ElementStyle="{StaticResource CenteredDataGridText}" />
+                                        <DataGridTextColumn Header="Steam账号" Binding="{Binding Username}" Width="1.1*" ElementStyle="{StaticResource CenteredDataGridText}" />
+                                        <DataGridTextColumn Header="邮箱" Binding="{Binding Email}" Width="1.2*" ElementStyle="{StaticResource CenteredDataGridText}" />
+                                        <DataGridTextColumn Header="查询 ID" Binding="{Binding GameId}" Width="1.1*" ElementStyle="{StaticResource CenteredDataGridText}" />
                                         <DataGridTemplateColumn Header="结果" Width="120">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>

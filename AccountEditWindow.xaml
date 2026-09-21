@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="编辑账号" Icon="/Assets/SteamSwitcher.png" Width="560" Height="600"
         WindowStartupLocation="CenterOwner" WindowStyle="None" AllowsTransparency="True"
-        ResizeMode="NoResize" Background="Transparent" FontFamily="Microsoft YaHei UI">
+        ResizeMode="NoResize" Background="Transparent" Foreground="{StaticResource TextBrush}" FontFamily="Microsoft YaHei UI">
     <Border Background="#F7F9FC" CornerRadius="14" BorderBrush="#DDE4EF" BorderThickness="1">
         <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.22" Color="#14223A" /></Border.Effect>
         <Grid>

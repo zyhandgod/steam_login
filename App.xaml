@@ -28,7 +28,13 @@
 
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        </Style>
+
+        <Style x:Key="CenteredDataGridText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         </Style>
 
@@ -242,6 +248,7 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="ColumnHeaderHeight" Value="54" />
             <Setter Property="RowHeight" Value="64" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="ColumnHeaderStyle">
                 <Setter.Value>
                     <Style TargetType="DataGridColumnHeader">
