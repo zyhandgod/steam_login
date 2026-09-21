@@ -21,7 +21,7 @@
 - Windows 10/11 x64
 - Microsoft Edge WebView2 Runtime（Windows 10/11 通常随 Edge 安装）
 
-下载 ZIP 后完整解压，双击 `SteamLoginLite.exe` 即可运行。程序已自带 .NET 8 与 Windows App SDK 运行组件，不需要安装本工具或另外安装 .NET。
+下载单个 `SteamLoginLite.exe` 后直接双击即可运行，不需要安装或解压。程序仅保留中英文资源，并自带 .NET 8 与 Windows App SDK 运行组件；首次启动会自动将必需组件释放到 `%LOCALAPPDATA%\SteamLoginLite\runtime`。
 
 如果未安装 WebView2 Runtime，程序会使用系统默认浏览器打开 PUBG.PLUS，并自动复制当前查询 ID。默认浏览器模式无法自动回填查询结果。
 
@@ -34,7 +34,7 @@ dotnet restore -r win-x64
 dotnet publish SteamLoginLite.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 ```
 
-输出位于 `publish/win-x64`。复制整个目录到一个可写文件夹即可使用，无需安装。
+常规发布输出位于 `publish/win-x64`；GitHub Release 会将这些组件封装为单个便携 EXE。
 
 ## 数据说明
 

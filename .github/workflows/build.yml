@@ -14,6 +14,7 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - run: dotnet restore -r win-x64
+      - run: dotnet restore Launcher/SteamLoginLite.Launcher.csproj -r win-x64
       - run: dotnet restore tests/ParserSmoke/ParserSmoke.csproj
       - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
       - name: Publish WinUI portable app
@@ -34,7 +35,12 @@ jobs:
             }
           }
           exit $exitCode
+      - name: Build single-file launcher
+        run: dotnet publish Launcher/SteamLoginLite.Launcher.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/launcher
+      - name: Create single-file portable app
+        shell: pwsh
+        run: ./scripts/New-SingleFilePortable.ps1 -PayloadDirectory publish/win-x64 -LauncherExecutable publish/launcher/SteamLoginLite.Launcher.exe -OutputFile publish/single/SteamLoginLite.exe
       - uses: actions/upload-artifact@v4
         with:
           name: SteamLoginLite-win-x64
-          path: publish/win-x64/**
+          path: publish/single/SteamLoginLite.exe
