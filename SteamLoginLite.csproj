@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/SteamSwitcher.ico</ApplicationIcon>
@@ -24,7 +25,11 @@
     <Reference Include="System.Web" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="tests/**/*.cs" />
+    <Compile Remove="tests/**/*.cs;Program.cs;MainForm.cs;AccountEditDialog.cs;UiStyle.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Assets/SteamSwitcher.png" />
+    <Resource Include="Assets/SteamSwitcher.png" />
   </ItemGroup>
   <Target Name="CopyX64WebView2Loader" AfterTargets="Build">
     <Copy SourceFiles="$(OutputPath)runtimes/win-x64/native/WebView2Loader.dll"
