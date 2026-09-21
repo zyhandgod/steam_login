@@ -13,11 +13,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet restore
+      - run: dotnet restore -r win-x64
       - run: dotnet restore tests/ParserSmoke/ParserSmoke.csproj
       - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
-      - run: dotnet build -c Release --no-restore
+      - run: dotnet publish SteamLoginLite.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/win-x64
       - uses: actions/upload-artifact@v4
         with:
           name: SteamLoginLite-win-x64
-          path: bin/Release/net48/**
+          path: publish/win-x64/**

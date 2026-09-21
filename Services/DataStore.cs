@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Web.Script.Serialization;
+using System.Text.Json;
 using SteamLoginLite.Models;
 
 namespace SteamLoginLite.Services
@@ -13,7 +13,7 @@ namespace SteamLoginLite.Services
     {
         private readonly string _directory;
         private readonly string _path;
-        private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
+        private readonly JsonSerializerOptions _json = new JsonSerializerOptions { WriteIndented = true, PropertyNameCaseInsensitive = true };
 
         public DataStore()
         {
@@ -27,7 +27,7 @@ namespace SteamLoginLite.Services
             {
                 TryMigrateLegacyData();
                 if (!File.Exists(_path)) return new AppData();
-                var result = _json.Deserialize<AppData>(File.ReadAllText(_path, Encoding.UTF8)) ?? new AppData();
+                var result = JsonSerializer.Deserialize<AppData>(File.ReadAllText(_path, Encoding.UTF8), _json) ?? new AppData();
                 if (result.Accounts == null) result.Accounts = new System.Collections.Generic.List<AccountRecord>();
                 if (result.Settings == null) result.Settings = new AppSettings();
                 return result;
@@ -43,7 +43,7 @@ namespace SteamLoginLite.Services
         {
             Directory.CreateDirectory(_directory);
             var temp = _path + ".tmp";
-            File.WriteAllText(temp, _json.Serialize(data), new UTF8Encoding(false));
+            File.WriteAllText(temp, JsonSerializer.Serialize(data, _json), new UTF8Encoding(false));
             if (File.Exists(_path)) File.Replace(temp, _path, _path + ".bak", true);
             else File.Move(temp, _path);
         }

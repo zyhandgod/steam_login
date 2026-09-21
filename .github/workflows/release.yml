@@ -18,18 +18,18 @@ jobs:
           dotnet-version: 8.0.x
       - name: Restore
         run: |
-          dotnet restore
+          dotnet restore -r win-x64
           dotnet restore tests/ParserSmoke/ParserSmoke.csproj
       - name: Test import and status mapping
         run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj --no-restore
-      - name: Build Windows app
-        run: dotnet build -c Release --no-restore
+      - name: Build portable Windows app
+        run: dotnet publish SteamLoginLite.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/win-x64
       - name: Create portable package
         shell: pwsh
         run: |
           $package = "SteamLoginLite-${{ github.ref_name }}"
           New-Item -ItemType Directory -Force -Path "release/$package" | Out-Null
-          Copy-Item "bin/Release/net48/*" "release/$package/" -Recurse -Force
+          Copy-Item "publish/win-x64/*" "release/$package/" -Recurse -Force
           Copy-Item "使用说明.txt" "release/$package/" -Force
           Compress-Archive -Path "release/$package" -DestinationPath "release/$package-win.zip" -Force
       - name: Publish GitHub Release
