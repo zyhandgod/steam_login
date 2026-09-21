@@ -16,11 +16,12 @@
         <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
         <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}" />
 
-        <DropShadowEffect x:Key="CardShadow" BlurRadius="18" ShadowDepth="2" Opacity="0.08" Color="#24456F" />
+        <DropShadowEffect x:Key="CardShadow" BlurRadius="22" ShadowDepth="3" Opacity="0.11" Color="#24456F" />
 
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
             <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         </Style>
 
         <Style x:Key="PrimaryButton" TargetType="Button">
@@ -183,16 +184,20 @@
             <Setter Property="AlternatingRowBackground" Value="#FBFCFE" />
             <Setter Property="SelectionMode" Value="Single" />
             <Setter Property="SelectionUnit" Value="Cell" />
+            <Setter Property="CanUserResizeColumns" Value="False" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="ColumnHeaderHeight" Value="48" />
-            <Setter Property="RowHeight" Value="58" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="ColumnHeaderHeight" Value="54" />
+            <Setter Property="RowHeight" Value="64" />
             <Setter Property="ColumnHeaderStyle">
                 <Setter.Value>
                     <Style TargetType="DataGridColumnHeader">
                         <Setter Property="Background" Value="#F7F9FC" />
                         <Setter Property="Foreground" Value="#43536B" />
                         <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="FontSize" Value="13" />
                         <Setter Property="Padding" Value="12,0" />
                         <Setter Property="BorderBrush" Value="#E8EDF4" />
                         <Setter Property="BorderThickness" Value="0,0,0,1" />
@@ -205,6 +210,7 @@
                         <Setter Property="BorderThickness" Value="0" />
                         <Setter Property="Padding" Value="12,0" />
                         <Setter Property="VerticalContentAlignment" Value="Center" />
+                        <Setter Property="ClipToBounds" Value="True" />
                         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                         <Style.Triggers>
                             <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#EEF3FF" /><Setter Property="Foreground" Value="{StaticResource TextBrush}" /></Trigger>

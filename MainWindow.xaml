@@ -1,7 +1,7 @@
 <Window x:Class="SteamLoginLite.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Steam切换器" Icon="/Assets/SteamSwitcher.png" Width="1440" Height="860" MinWidth="1180" MinHeight="700"
+        Title="Steam切换器" Icon="/Assets/SteamSwitcher.png" Width="1440" Height="860" MinWidth="1080" MinHeight="700"
         WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True"
         ResizeMode="CanResizeWithGrip" Background="Transparent" FontFamily="Microsoft YaHei UI">
     <Window.Resources>
@@ -41,14 +41,14 @@
     <Border x:Name="WindowBorder" Background="White" CornerRadius="14" BorderBrush="#DDE4EF" BorderThickness="1" SnapsToDevicePixels="True">
         <Border.Effect><DropShadowEffect BlurRadius="28" ShadowDepth="5" Opacity="0.2" Color="#14223A" /></Border.Effect>
         <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="240" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="248" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Background="{StaticResource NavyBrush}" CornerRadius="14,0,0,14">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="38" /><RowDefinition Height="112" /><RowDefinition Height="*" /><RowDefinition Height="62" /></Grid.RowDefinitions>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="24,0,14,0">
-                        <Image Source="/Assets/SteamSwitcher.png" Width="58" Height="58" Stretch="Uniform" />
-                        <TextBlock Text="Steam切换器" Foreground="White" FontWeight="Bold" FontSize="18" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="22,0,12,0">
+                        <Image Source="/Assets/SteamSwitcherSidebar.png" Width="66" Height="66" Stretch="Uniform" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <TextBlock Text="Steam切换器" Foreground="White" FontWeight="Bold" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" TextOptions.TextFormattingMode="Display" />
                     </StackPanel>
                     <StackPanel Grid.Row="2" Margin="0,8,0,0">
                         <Button x:Name="AccountsNav" Style="{StaticResource NavButton}" Tag="Active" Click="AccountsNav_Click">
@@ -84,8 +84,8 @@
                 <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
                     <Grid Margin="32,0,30,0">
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock x:Name="PageTitle" Text="账号管理" FontSize="27" FontWeight="Bold" />
-                            <TextBlock x:Name="PageSubtitle" Text="管理登录凭据、查询状态与启动偏好" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,5,0,0" />
+                            <TextBlock x:Name="PageTitle" Text="账号管理" FontSize="30" FontWeight="Bold" />
+                            <TextBlock x:Name="PageSubtitle" Text="管理登录凭据、查询状态与启动偏好" Foreground="{StaticResource MutedBrush}" FontSize="13" Margin="0,6,0,0" />
                         </StackPanel>
                         <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Ellipse Width="8" Height="8" Fill="#16A66A" Margin="0,0,7,0" /><TextBlock Text="本机安全存储" Foreground="#40536D" FontSize="11" /></StackPanel>
@@ -95,31 +95,31 @@
                 </Border>
 
                 <!-- 账号管理 -->
-                <Grid x:Name="AccountsPage" Grid.Row="2" Margin="26,24,26,26">
-                    <Grid.RowDefinitions><RowDefinition Height="112" /><RowDefinition Height="62" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid x:Name="AccountsPage" Grid.Row="2" Margin="28,26,28,28">
+                    <Grid.RowDefinitions><RowDefinition Height="122" /><RowDefinition Height="70" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <UniformGrid Grid.Row="0" Columns="4">
                         <Button x:Name="TotalCard" Style="{StaticResource StatCardButton}" Tag="Active" Click="StatCard_Click" CommandParameter="">
-                            <Grid Margin="20,16"><Grid.ColumnDefinitions><ColumnDefinition Width="52" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <Border Width="42" Height="42" CornerRadius="21" Background="#E8EEFF" VerticalAlignment="Center"><TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="账号总数" Foreground="#526178" FontSize="12" /><TextBlock x:Name="TotalCount" Text="0" Foreground="{StaticResource AccentBrush}" FontSize="25" FontWeight="Bold" Margin="0,3,0,0" /></StackPanel>
+                            <Grid Margin="20,16"><Grid.ColumnDefinitions><ColumnDefinition Width="56" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border Width="46" Height="46" CornerRadius="23" Background="#E8EEFF" VerticalAlignment="Center"><TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                                <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"><TextBlock Text="账号总数" Foreground="#526178" FontSize="13" /><TextBlock x:Name="TotalCount" Text="0" Foreground="{StaticResource AccentBrush}" FontSize="29" FontWeight="Bold" Margin="0,3,0,0" /></StackPanel>
                             </Grid>
                         </Button>
                         <Button x:Name="NormalCard" Style="{StaticResource StatCardButton}" Click="StatCard_Click" CommandParameter="正常">
-                            <Grid Margin="20,16"><Grid.ColumnDefinitions><ColumnDefinition Width="52" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <Border Width="42" Height="42" CornerRadius="21" Background="#E7F8EF" VerticalAlignment="Center"><TextBlock Text="✓" Foreground="#0AA568" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="正常" Foreground="#526178" FontSize="12" /><TextBlock x:Name="NormalCount" Text="0" Foreground="#0AA568" FontSize="25" FontWeight="Bold" Margin="0,3,0,0" /></StackPanel>
+                            <Grid Margin="20,16"><Grid.ColumnDefinitions><ColumnDefinition Width="56" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border Width="46" Height="46" CornerRadius="23" Background="#E7F8EF" VerticalAlignment="Center"><TextBlock Text="✓" Foreground="#0AA568" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                                <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"><TextBlock Text="正常" Foreground="#526178" FontSize="13" /><TextBlock x:Name="NormalCount" Text="0" Foreground="#0AA568" FontSize="29" FontWeight="Bold" Margin="0,3,0,0" /></StackPanel>
                             </Grid>
                         </Button>
                         <Button x:Name="TempCard" Style="{StaticResource StatCardButton}" Click="StatCard_Click" CommandParameter="临时封禁">
-                            <Grid Margin="20,16"><Grid.ColumnDefinitions><ColumnDefinition Width="52" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <Border Width="42" Height="42" CornerRadius="21" Background="#FFF0F1" VerticalAlignment="Center"><TextBlock Text="◷" Foreground="#E33445" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="临时封禁" Foreground="#526178" FontSize="12" /><TextBlock x:Name="TempCount" Text="0" Foreground="#E33445" FontSize="25" FontWeight="Bold" Margin="0,3,0,0" /></StackPanel>
+                            <Grid Margin="20,16"><Grid.ColumnDefinitions><ColumnDefinition Width="56" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border Width="46" Height="46" CornerRadius="23" Background="#FFF0F1" VerticalAlignment="Center"><TextBlock Text="◷" Foreground="#E33445" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                                <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"><TextBlock Text="临时封禁" Foreground="#526178" FontSize="13" /><TextBlock x:Name="TempCount" Text="0" Foreground="#E33445" FontSize="29" FontWeight="Bold" Margin="0,3,0,0" /></StackPanel>
                             </Grid>
                         </Button>
                         <Button x:Name="PermanentCard" Style="{StaticResource StatCardButton}" Margin="0" Click="StatCard_Click" CommandParameter="永久封禁">
-                            <Grid Margin="20,16"><Grid.ColumnDefinitions><ColumnDefinition Width="52" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <Border Width="42" Height="42" CornerRadius="21" Background="#FFF0F1" VerticalAlignment="Center"><TextBlock Text="−" Foreground="#E33445" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="永久封禁" Foreground="#526178" FontSize="12" /><TextBlock x:Name="PermanentCount" Text="0" Foreground="#E33445" FontSize="25" FontWeight="Bold" Margin="0,3,0,0" /></StackPanel>
+                            <Grid Margin="20,16"><Grid.ColumnDefinitions><ColumnDefinition Width="56" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border Width="46" Height="46" CornerRadius="23" Background="#FFF0F1" VerticalAlignment="Center"><TextBlock Text="−" Foreground="#E33445" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                                <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"><TextBlock Text="永久封禁" Foreground="#526178" FontSize="13" /><TextBlock x:Name="PermanentCount" Text="0" Foreground="#E33445" FontSize="29" FontWeight="Bold" Margin="0,3,0,0" /></StackPanel>
                             </Grid>
                         </Button>
                     </UniformGrid>
@@ -129,14 +129,14 @@
                         <Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="批量删除" Width="116" Margin="10,0,0,0" Click="DeleteSelected_Click" />
                     </Grid>
                     <Border Grid.Row="2" Style="{StaticResource CardBorder}" Padding="1">
-                        <DataGrid x:Name="AccountsGrid" Style="{StaticResource ModernDataGrid}" ItemsSource="{Binding Accounts}" IsReadOnly="False">
+                        <DataGrid x:Name="AccountsGrid" Style="{StaticResource ModernDataGrid}" ItemsSource="{Binding Accounts}" IsReadOnly="False" SizeChanged="AccountsGrid_SizeChanged">
                             <DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding UiIsCurrent}" Value="True"><Setter Property="Background" Value="#F6FAF0" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
                             <DataGrid.Columns>
                                 <DataGridTemplateColumn Header="选择" Width="52"><DataGridTemplateColumn.CellTemplate><DataTemplate><CheckBox IsChecked="{Binding UiSelected, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="账号" Width="1.2*"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal"><Border Background="{StaticResource AccentBrush}" CornerRadius="5" Padding="5,2" Margin="0,0,7,0" Visibility="{Binding UiIsCurrent, Converter={StaticResource BooleanToVisibility}}"><TextBlock Text="当前" Foreground="White" FontSize="9" /></Border><TextBlock Text="{Binding Username}" VerticalAlignment="Center" /><Button Style="{StaticResource LinkButton}" Content="⧉" Tag="{Binding Username}" ToolTip="复制账号" Click="CopyValue_Click" Margin="4,0,0,0" /></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="查询 ID" Width="1.15*"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding EffectiveGameId}" VerticalAlignment="Center" /><Button Style="{StaticResource LinkButton}" Content="⧉" Tag="{Binding EffectiveGameId}" ToolTip="复制查询 ID" Click="CopyValue_Click" Margin="4,0,0,0" /></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTextColumn Header="等级" Binding="{Binding LevelText}" Width="60" IsReadOnly="True" />
-                                <DataGridTemplateColumn Header="封禁状态" Width="100">
+                                <DataGridTemplateColumn Header="账号" Width="1.3*" MinWidth="154"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Border Background="{StaticResource AccentBrush}" CornerRadius="6" Padding="7,3" Margin="0,0,8,0" VerticalAlignment="Center" Visibility="{Binding UiIsCurrent, Converter={StaticResource BooleanToVisibility}}"><TextBlock Text="当前" Foreground="White" FontSize="10" TextWrapping="NoWrap" /></Border><TextBlock Grid.Column="1" Text="{Binding Username}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Username}" /><Button Grid.Column="2" Style="{StaticResource LinkButton}" Content="⧉" Tag="{Binding Username}" ToolTip="复制账号" Click="CopyValue_Click" Padding="5" Margin="2,0,0,0" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="查询 ID" Width="1.2*" MinWidth="142"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding EffectiveGameId}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding EffectiveGameId}" /><Button Grid.Column="1" Style="{StaticResource LinkButton}" Content="⧉" Tag="{Binding EffectiveGameId}" ToolTip="复制查询 ID" Click="CopyValue_Click" Padding="5" Margin="2,0,0,0" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTextColumn Header="等级" Binding="{Binding LevelText}" Width="62" IsReadOnly="True" />
+                                <DataGridTemplateColumn Header="封禁状态" Width="108">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Border x:Name="StatusChip" CornerRadius="7" Padding="9,4" HorizontalAlignment="Left" Background="#EEF2F7">
@@ -150,10 +150,10 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="最后登录" Binding="{Binding LastLoginText}" Width="105" IsReadOnly="True" />
-                                <DataGridTextColumn Header="最后查询" Binding="{Binding LastQueryText}" Width="105" IsReadOnly="True" />
-                                <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="90" IsReadOnly="True" />
-                                <DataGridTemplateColumn Header="操作" Width="250"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal"><Button Style="{StaticResource PrimaryButton}" Content="登录" Height="34" Padding="13,0" Tag="{Binding}" Click="Login_Click" /><Button Style="{StaticResource LinkButton}" Content="查询" Tag="{Binding}" Click="Query_Click" Margin="4,0" /><Button Style="{StaticResource LinkButton}" Content="编辑" Tag="{Binding}" Click="Edit_Click" /><Button Style="{StaticResource DangerButton}" Content="删除" Height="34" Padding="12,0" Tag="{Binding}" Click="Delete_Click" Margin="5,0,0,0" /></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTextColumn x:Name="LastLoginColumn" Header="最后登录" Binding="{Binding LastLoginText}" Width="112" IsReadOnly="True" />
+                                <DataGridTextColumn x:Name="LastQueryColumn" Header="最后查询" Binding="{Binding LastQueryText}" Width="112" IsReadOnly="True" />
+                                <DataGridTemplateColumn x:Name="NoteColumn" Header="备注" Width="1.05*" MinWidth="120"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Note}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Note}" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="操作" Width="222"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid HorizontalAlignment="Left"><Grid.ColumnDefinitions><ColumnDefinition Width="52" /><ColumnDefinition Width="48" /><ColumnDefinition Width="48" /><ColumnDefinition Width="58" /></Grid.ColumnDefinitions><Button Style="{StaticResource PrimaryButton}" Content="登录" Height="36" Padding="0" Margin="0,0,5,0" Tag="{Binding}" Click="Login_Click" /><Button Grid.Column="1" Style="{StaticResource LinkButton}" Content="查询" Tag="{Binding}" Click="Query_Click" Margin="0,0,3,0" /><Button Grid.Column="2" Style="{StaticResource LinkButton}" Content="编辑" Tag="{Binding}" Click="Edit_Click" Margin="0,0,3,0" /><Button Grid.Column="3" Style="{StaticResource DangerButton}" Content="删除" Height="36" Padding="0" Tag="{Binding}" Click="Delete_Click" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Border>

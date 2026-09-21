@@ -96,6 +96,15 @@ namespace SteamLoginLite
             RefreshAccounts();
         }
 
+        private void AccountsGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (LastLoginColumn == null || LastQueryColumn == null || NoteColumn == null) return;
+            var width = AccountsGrid.ActualWidth;
+            LastLoginColumn.Visibility = width >= 1080 ? Visibility.Visible : Visibility.Collapsed;
+            LastQueryColumn.Visibility = width >= 1080 ? Visibility.Visible : Visibility.Collapsed;
+            NoteColumn.Visibility = width >= 940 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private void StatCard_Click(object sender, RoutedEventArgs e)
         {
             var button = (Button)sender;
