@@ -26,6 +26,13 @@ jobs:
           '```text' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           $lines | Select-Object -Last 120 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          if ($exitCode -ne 0) {
+            $errors = $lines | Where-Object { "$_" -match ': error|error (CS|XLS|WMC|MSB|NETSDK|NU|APPX)' } | Select-Object -Last 20
+            foreach ($line in $errors) {
+              $safe = "$line" -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+              Write-Host "::error::$safe"
+            }
+          }
           exit $exitCode
       - uses: actions/upload-artifact@v4
         with:
