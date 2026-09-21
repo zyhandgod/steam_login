@@ -173,7 +173,28 @@
                     <Border Grid.Column="1" Style="{StaticResource CardBorder}" Padding="22">
                         <Grid><Grid.RowDefinitions><RowDefinition Height="54" /><RowDefinition Height="*" /><RowDefinition Height="58" /></Grid.RowDefinitions>
                             <Grid><TextBlock Text="解析预览" FontSize="19" FontWeight="Bold" VerticalAlignment="Top" /><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Border Background="#EEF2F7" CornerRadius="8" Padding="12,6" Margin="0,0,8,0"><TextBlock x:Name="ImportTotal" Text="共 0 条" Foreground="#53627A" FontSize="11" /></Border><Border Background="#E7F8EF" CornerRadius="8" Padding="12,6"><TextBlock x:Name="ImportValid" Text="可导入 0 条" Foreground="#078E59" FontWeight="SemiBold" FontSize="11" /></Border></StackPanel></Grid>
-                            <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10" ClipToBounds="True"><DataGrid x:Name="PreviewGrid" Style="{StaticResource ModernDataGrid}" ItemsSource="{Binding Preview}" IsReadOnly="True"><DataGrid.Columns><DataGridTextColumn Header="行" Binding="{Binding LineNumber}" Width="52" /><DataGridTextColumn Header="Steam账号" Binding="{Binding Username}" Width="1.1*" /><DataGridTextColumn Header="邮箱" Binding="{Binding Email}" Width="1.2*" /><DataGridTextColumn Header="查询 ID" Binding="{Binding GameId}" Width="1.1*" /><DataGridTemplateColumn Header="结果" Width="92"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border CornerRadius="7" Padding="9,4" HorizontalAlignment="Left" Background="#E7F8EF"><TextBlock Text="{Binding Error}" Foreground="#078E59" FontWeight="SemiBold" FontSize="11" /></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn></DataGrid.Columns></DataGrid></Border>
+                            <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+                                <DataGrid x:Name="PreviewGrid" Style="{StaticResource ModernDataGrid}" ItemsSource="{Binding Preview}" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="行" Binding="{Binding LineNumber}" Width="52" />
+                                        <DataGridTextColumn Header="Steam账号" Binding="{Binding Username}" Width="1.1*" />
+                                        <DataGridTextColumn Header="邮箱" Binding="{Binding Email}" Width="1.2*" />
+                                        <DataGridTextColumn Header="查询 ID" Binding="{Binding GameId}" Width="1.1*" />
+                                        <DataGridTemplateColumn Header="结果" Width="120">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="ImportResultChip" CornerRadius="7" Padding="9,4" HorizontalAlignment="Left" Background="#FFF0F1">
+                                                        <TextBlock x:Name="ImportResultText" Text="{Binding Error}" Foreground="#D92D3F" FontWeight="SemiBold" FontSize="11" />
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding Error}" Value="可导入"><Setter TargetName="ImportResultChip" Property="Background" Value="#E7F8EF" /><Setter TargetName="ImportResultText" Property="Foreground" Value="#078E59" /></DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
                             <Button Grid.Row="2" Style="{StaticResource PrimaryButton}" Content="导入有效账号" Width="145" HorizontalAlignment="Right" Margin="0,16,0,0" Click="CommitImport_Click" />
                         </Grid>
                     </Border>
