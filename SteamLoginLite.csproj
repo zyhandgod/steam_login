@@ -25,6 +25,5 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Program.cs;MainForm.cs;AccountEditDialog.cs;PubgPlusQueryForm.cs;UiStyle.cs;tests/**/*.cs" />
-    <Content Include="Assets/SteamSwitcher.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
