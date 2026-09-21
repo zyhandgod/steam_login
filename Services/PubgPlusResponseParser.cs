@@ -1,19 +1,32 @@
 using System;
-using System.Text.Json;
+using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Web.Script.Serialization;
 using SteamLoginLite.Models;
 
 namespace SteamLoginLite.Services
 {
     public sealed class PubgPlusResponseParser
     {
+        private readonly JavaScriptSerializer _json = new JavaScriptSerializer();
+
         public PubgPlusResult Parse(string body, string expectedId)
         {
             try
             {
-                using var document = JsonDocument.Parse(body);
-                var root = document.RootElement;
-                if (TryFind(root, "code", out var codeNode) && codeNode.ValueKind == JsonValueKind.Number && codeNode.TryGetInt32(out var code) && code != 0) return null;
-                if (!TryFind(root, "player", out var player) || player.ValueKind != JsonValueKind.Object) return null;
+                var root = _json.DeserializeObject(body) as IDictionary<string, object>;
+                if (root == null) return null;
+
+                object codeValue;
+                int code;
+                if (root.TryGetValue("code", out codeValue) && int.TryParse(Convert.ToString(codeValue, CultureInfo.InvariantCulture), out code) && code != 0)
+                    return null;
+
+                object playerValue;
+                if (!TryFind(root, "player", out playerValue)) return null;
+                var player = playerValue as IDictionary<string, object>;
+                if (player == null) return null;
 
                 var name = GetString(player, "name");
                 var shard = GetString(player, "shardId");
@@ -21,7 +34,8 @@ namespace SteamLoginLite.Services
                 if (shard.Length > 0 && !string.Equals(shard, "steam", StringComparison.OrdinalIgnoreCase)) return null;
 
                 var raw = GetString(player, "ban");
-                if (raw.Length == 0 || !player.TryGetProperty("level", out var levelNode) || !levelNode.TryGetInt32(out var level) || level < 0) return null;
+                int level;
+                if (raw.Length == 0 || !TryGetInt(player, "level", out level) || level < 0) return null;
 
                 return new PubgPlusResult
                 {
@@ -34,27 +48,36 @@ namespace SteamLoginLite.Services
             catch { return null; }
         }
 
-        private static string GetString(JsonElement source, string key)
+        private static string GetString(IDictionary<string, object> source, string key)
         {
-            if (!source.TryGetProperty(key, out var value)) return "";
-            return value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : value.ToString();
+            object value;
+            return source.TryGetValue(key, out value) && value != null ? Convert.ToString(value, CultureInfo.InvariantCulture) ?? "" : "";
         }
 
-        private static bool TryFind(JsonElement node, string key, out JsonElement found)
+        private static bool TryGetInt(IDictionary<string, object> source, string key, out int value)
         {
-            if (node.ValueKind == JsonValueKind.Object)
+            value = 0;
+            object raw;
+            return source.TryGetValue(key, out raw) && raw != null && int.TryParse(Convert.ToString(raw, CultureInfo.InvariantCulture), out value);
+        }
+
+        private static bool TryFind(object node, string key, out object found)
+        {
+            var dictionary = node as IDictionary<string, object>;
+            if (dictionary != null)
             {
-                foreach (var property in node.EnumerateObject())
-                    if (string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase)) { found = property.Value; return true; }
-                foreach (var property in node.EnumerateObject())
-                    if (TryFind(property.Value, key, out found)) return true;
+                foreach (var pair in dictionary)
+                    if (string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase)) { found = pair.Value; return true; }
+                foreach (var pair in dictionary)
+                    if (TryFind(pair.Value, key, out found)) return true;
             }
-            else if (node.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in node.EnumerateArray())
+
+            var list = node as IEnumerable;
+            if (list != null && !(node is string))
+                foreach (var item in list)
                     if (TryFind(item, key, out found)) return true;
-            }
-            found = default;
+
+            found = null;
             return false;
         }
     }

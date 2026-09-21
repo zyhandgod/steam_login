@@ -13,34 +13,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet restore -r win-x64
-      - run: dotnet restore Launcher/SteamLoginLite.Launcher.csproj -r win-x64
+      - run: dotnet restore
       - run: dotnet restore tests/ParserSmoke/ParserSmoke.csproj
       - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
-      - name: Publish WinUI portable app
-        shell: pwsh
-        run: |
-          $lines = dotnet publish SteamLoginLite.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/win-x64 2>&1
-          $exitCode = $LASTEXITCODE
-          $lines | ForEach-Object { Write-Host $_ }
-          "### Windows build output" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          '```text' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          $lines | Select-Object -Last 120 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          if ($exitCode -ne 0) {
-            $errors = $lines | Where-Object { "$_" -match ': error|error (CS|XLS|WMC|MSB|NETSDK|NU|APPX)' } | Select-Object -Last 20
-            foreach ($line in $errors) {
-              $safe = "$line" -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
-              Write-Host "::error::$safe"
-            }
-          }
-          exit $exitCode
-      - name: Build single-file launcher
-        run: dotnet publish Launcher/SteamLoginLite.Launcher.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/launcher
-      - name: Create single-file portable app
-        shell: pwsh
-        run: ./scripts/New-SingleFilePortable.ps1 -PayloadDirectory publish/win-x64 -LauncherExecutable publish/launcher/SteamLoginLite.Launcher.exe -OutputFile publish/single/SteamLoginLite.exe
+      - run: dotnet build -c Release --no-restore
       - uses: actions/upload-artifact@v4
         with:
           name: SteamLoginLite-win-x64
-          path: publish/single/SteamLoginLite.exe
+          path: bin/Release/net48/**

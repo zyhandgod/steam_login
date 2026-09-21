@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
+using System.Web.Script.Serialization;
 
 namespace SteamLoginLite.Models
 {
@@ -27,10 +27,10 @@ namespace SteamLoginLite.Models
         public long LastLoginAt { get; set; }
         public long LastQueryAt { get; set; }
 
-        [JsonIgnore]
+        [ScriptIgnore]
         public bool UiSelected { get; set; }
 
-        [JsonIgnore]
+        [ScriptIgnore]
         public bool UiIsCurrent { get; set; }
 
         public string EffectiveGameId => string.IsNullOrWhiteSpace(GameId) ? Username : GameId;
