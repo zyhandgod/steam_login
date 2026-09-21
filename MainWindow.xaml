@@ -5,13 +5,6 @@
     xmlns:local="using:SteamLoginLite"
     xmlns:models="using:SteamLoginLite.Models"
     Title="Steam切换器">
-    <Window.Resources>
-        <local:BooleanToVisibilityConverter x:Key="BoolVisibility" />
-        <local:StatusForegroundConverter x:Key="StatusForeground" />
-        <local:StatusBackgroundConverter x:Key="StatusBackground" />
-        <local:CurrentRowBackgroundConverter x:Key="CurrentRowBackground" />
-    </Window.Resources>
-
     <Grid Background="#F7F9FC">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="76" />
