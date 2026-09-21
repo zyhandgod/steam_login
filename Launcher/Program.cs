@@ -89,7 +89,7 @@ internal static class Program
                 startInfo.ArgumentList.Add(argument);
             }
 
-            Process.Start(startInfo)
+            _ = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("程序启动失败。");
             CleanupOldRuntimes(runtimeRoot, targetDirectory);
             return 0;
