@@ -40,18 +40,20 @@ namespace SteamLoginLite.Services
         private static ImportedAccount ParseSeparated(string line)
         {
             var parts = Separator.Split(line).Select(Clean).ToArray();
-            if (parts.Length != 4 && parts.Length != 5)
-                return new ImportedAccount { Error = "需要4段或5段数据" };
+            if (parts.Length != 2 && parts.Length != 4 && parts.Length != 5)
+                return new ImportedAccount { Error = "需要2段、4段或5段数据" };
             return new ImportedAccount
             {
-                Username = parts[0], Password = parts[1], Email = parts[2], EmailPassword = parts[3],
+                Username = parts[0], Password = parts[1],
+                Email = parts.Length >= 4 ? parts[2] : "",
+                EmailPassword = parts.Length >= 4 ? parts[3] : "",
                 GameId = parts.Length == 5 && parts[4].Length > 0 ? parts[4] : parts[0]
             };
         }
 
         private static ImportedAccount ParseLabels(string line)
         {
-            var pattern = @"^账号(?<u>.*?)密码(?<p>.*?)邮箱账号(?<e>.*?)邮箱密码(?<ep>.*?)(?:邮箱地址(?<domain>.*?))?(?:游戏(?:ID|昵称)(?<g>.*))?$";
+            var pattern = @"^账号(?<u>.*?)密码(?<p>.*?)(?:邮箱账号(?<e>.*?)邮箱密码(?<ep>.*?)(?:邮箱地址(?<domain>.*?))?)?(?:游戏(?:ID|昵称)(?<g>.*))?$";
             var match = Regex.Match(line, pattern, RegexOptions.IgnoreCase);
             if (!match.Success) return new ImportedAccount { Error = "无法识别中文标签格式" };
             var email = Clean(match.Groups["e"].Value);

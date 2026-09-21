@@ -64,19 +64,22 @@ namespace SteamLoginLite
         {
             var sidebar = new Panel { Dock = DockStyle.Left, Width = 224, BackColor = _navy, Padding = new Padding(16, 20, 16, 18) };
             var brand = new Panel { Height = 72, Dock = DockStyle.Top, BackColor = _navy, Padding = new Padding(42, 0, 0, 0) };
+            Image brandLogo = null;
+            try { brandLogo = Icon?.ToBitmap(); } catch { }
             var brandTitle = new Label { Text = "Steam切换器", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Dock = DockStyle.Top, Height = 34, TextAlign = ContentAlignment.BottomLeft };
             var brandCaption = new Label { Text = "ACCOUNT WORKSPACE", ForeColor = Color.FromArgb(137, 157, 187), Font = new Font(Font.FontFamily, 7.5F, FontStyle.Bold), Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.TopLeft };
             brand.Controls.Add(brandCaption);
             brand.Controls.Add(brandTitle);
             brand.Paint += (_, e) =>
             {
-                using (var brush = new SolidBrush(_blue)) e.Graphics.FillRectangle(brush, 0, 21, 24, 24);
-                using (var pen = new Pen(Color.FromArgb(180, 205, 255), 2))
+                if (brandLogo != null)
                 {
-                    e.Graphics.DrawLine(pen, 7, 29, 17, 29);
-                    e.Graphics.DrawLine(pen, 7, 35, 17, 35);
+                    e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    e.Graphics.DrawImage(brandLogo, new Rectangle(0, 19, 28, 28));
                 }
+                else using (var brush = new SolidBrush(_blue)) e.Graphics.FillEllipse(brush, 0, 21, 24, 24);
             };
+            brand.Disposed += (_, __) => brandLogo?.Dispose();
             sidebar.Controls.Add(NavButton("设置", NavIcon.Settings, ShowSettingsPage));
             sidebar.Controls.Add(NavButton("批量导入", NavIcon.Import, ShowImportPage));
             sidebar.Controls.Add(NavButton("账号管理", NavIcon.Accounts, ShowAccountsPage));
@@ -93,7 +96,7 @@ namespace SteamLoginLite
             var pageSubtitle = new Label { Text = "管理登录凭据、查询状态与启动偏好", Dock = DockStyle.Bottom, Height = 24, TextAlign = ContentAlignment.TopLeft, ForeColor = _muted, Font = new Font(Font.FontFamily, 8.5F) };
             pageIdentity.Controls.Add(pageSubtitle);
             pageIdentity.Controls.Add(_pageTitle);
-            var portable = new Label { Text = "绿色便携版\r\n数据仅保存在本机", Dock = DockStyle.Right, Width = 190, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(72, 91, 116), Font = new Font(Font.FontFamily, 8.5F) };
+            var portable = new Label { Text = "本机安全存储\r\n升级自动保留数据", Dock = DockStyle.Right, Width = 190, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(72, 91, 116), Font = new Font(Font.FontFamily, 8.5F) };
             portable.Paint += (_, e) => { using (var brush = new SolidBrush(Color.FromArgb(35, 171, 112))) e.Graphics.FillEllipse(brush, portable.Width - 86, 30, 7, 7); };
             header.Controls.Add(portable);
             header.Controls.Add(pageIdentity);
@@ -132,6 +135,7 @@ namespace SteamLoginLite
             button.FlatAppearance.BorderSize = 0;
             button.FlatAppearance.MouseOverBackColor = NavHover;
             button.FlatAppearance.MouseDownBackColor = NavActiveBackground;
+            UiStyle.Round(button, 8);
             button.Paint += (sender, e) =>
             {
                 var owner = (Button)sender;
@@ -213,10 +217,14 @@ namespace SteamLoginLite
             BeginPage("账号管理");
             var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 56, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(0, 3, 0, 0) };
             var searchLabel = new Label { Text = "筛选账号", AutoSize = true, Margin = new Padding(0, 13, 10, 0), ForeColor = _muted, Font = new Font(Font, FontStyle.Bold) };
-            _searchBox = new TextBox { Width = 250, Height = 34, Font = new Font(Font.FontFamily, 10), Margin = new Padding(0, 7, 14, 0), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.White };
+            var searchHost = new Panel { Width = 250, Height = 34, Margin = new Padding(0, 7, 14, 0), BackColor = Color.White, Padding = new Padding(10, 7, 10, 5) };
+            _searchBox = new TextBox { Dock = DockStyle.Fill, Font = new Font(Font.FontFamily, 10), BorderStyle = BorderStyle.None, BackColor = Color.White };
             _searchBox.TextChanged += (_, __) => RefreshAccounts();
+            searchHost.Controls.Add(_searchBox);
+            searchHost.Paint += (_, e) => UiStyle.DrawRoundedBorder(e.Graphics, new Rectangle(0, 0, searchHost.Width - 1, searchHost.Height - 1), 8, _border);
+            UiStyle.Round(searchHost, 8);
             toolbar.Controls.Add(searchLabel);
-            toolbar.Controls.Add(_searchBox);
+            toolbar.Controls.Add(searchHost);
             toolbar.Controls.Add(ActionButton("批量查询", QueryChecked, false));
             toolbar.Controls.Add(ActionButton("批量删除", DeleteSelected, false));
 
@@ -284,9 +292,10 @@ namespace SteamLoginLite
             card.Paint += (_, e) =>
             {
                 var selected = string.Equals(Convert.ToString(card.Tag), _statusFilter, StringComparison.Ordinal);
-                using (var pen = new Pen(selected ? _blue : _border, 1)) e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
-                using (var brush = new SolidBrush(valueColor)) e.Graphics.FillRectangle(brush, 0, 0, 4, card.Height);
+                UiStyle.DrawRoundedBorder(e.Graphics, new Rectangle(0, 0, card.Width - 1, card.Height - 1), 10, selected ? _blue : _border);
+                using (var brush = new SolidBrush(valueColor)) e.Graphics.FillRectangle(brush, 0, 8, 4, card.Height - 16);
             };
+            UiStyle.Round(card, 10);
             var valueLabel = new Label { Name = name, Text = value, Dock = DockStyle.Bottom, Height = 34, Font = new Font(Font.FontFamily, 16, FontStyle.Bold), ForeColor = valueColor, Cursor = Cursors.Hand };
             var titleLabel = new Label { Text = title, Dock = DockStyle.Top, Height = 24, ForeColor = Color.FromArgb(99, 115, 136), Cursor = Cursors.Hand };
             Action applyFilter = () =>
@@ -321,18 +330,17 @@ namespace SteamLoginLite
         private void ShowImportPage()
         {
             BeginPage("批量导入");
-            var hint = new Label { Dock = DockStyle.Top, Height = 50, Text = "每行一个账号，支持中文标签格式以及 -- / --- / ---- 分隔。四段数据没有游戏ID时，自动使用Steam账号名。", ForeColor = _muted, Padding = new Padding(0, 2, 0, 0) };
+            var hint = new Label { Dock = DockStyle.Top, Height = 50, Text = "每行一个账号，支持“账号xxx密码xxx”或使用 -- / --- / ---- 分隔的2段、4段、5段格式。没有游戏ID时自动使用Steam账号名。", ForeColor = _muted, Padding = new Padding(0, 2, 0, 0) };
             var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 220, IsSplitterFixed = false, BackColor = _background };
-            _importText = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 10), BorderStyle = BorderStyle.FixedSingle };
+            _importText = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Both, Font = new Font(Font.FontFamily, 10), BorderStyle = BorderStyle.None };
             var inputHost = new Panel { Dock = DockStyle.Fill, BackColor = _surface, Padding = new Padding(10) };
             var placeholder = new Label
             {
-                Text = "示例：账号----密码----邮箱----邮箱密码\r\n也支持中文标签格式，粘贴后点击“解析预览”",
-                AutoSize = true,
-                Location = new Point(7, 7),
+                Text = "示例：fxols54967--sltm34244M\r\n或：账号fxols54967密码sltm34244M",
+                AutoSize = false,
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(140, 150, 164),
-                Font = new Font("Consolas", 10),
+                Font = new Font(Font.FontFamily, 9.5F),
                 Cursor = Cursors.IBeam
             };
             Action updatePlaceholder = () => placeholder.Visible = _importText.TextLength == 0 && !_importText.Focused;
@@ -343,6 +351,11 @@ namespace SteamLoginLite
             inputHost.Controls.Add(_importText);
             inputHost.Controls.Add(placeholder);
             placeholder.BringToFront();
+            Action layoutPlaceholder = () => placeholder.SetBounds(18, 14, Math.Max(40, inputHost.ClientSize.Width - 36), 44);
+            inputHost.Resize += (_, __) => layoutPlaceholder();
+            inputHost.Paint += (_, e) => UiStyle.DrawRoundedBorder(e.Graphics, new Rectangle(0, 0, inputHost.Width - 1, inputHost.Height - 1), 10, _border);
+            UiStyle.Round(inputHost, 10);
+            layoutPlaceholder();
             var importActions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 52, BackColor = _background, Padding = new Padding(0, 5, 0, 0) };
             importActions.Controls.Add(ActionButton("解析预览", ParsePreview, false));
             importActions.Controls.Add(ActionButton("导入有效账号", CommitImport, true));
@@ -365,7 +378,8 @@ namespace SteamLoginLite
         {
             BeginPage("设置");
             var card = new Panel { Dock = DockStyle.Top, Height = 430, BackColor = _surface, Padding = new Padding(28) };
-            card.Paint += (_, e) => { using (var pen = new Pen(_border)) e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1); };
+            card.Paint += (_, e) => UiStyle.DrawRoundedBorder(e.Graphics, new Rectangle(0, 0, card.Width - 1, card.Height - 1), 12, _border);
+            UiStyle.Round(card, 12);
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 7 };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -443,7 +457,13 @@ namespace SteamLoginLite
             var username = SteamService.FindMostRecentAccountName(_data.Settings.SteamPath);
             if (string.IsNullOrWhiteSpace(username)) return;
             var account = _data.Accounts.FirstOrDefault(a => string.Equals(a.Username, username, StringComparison.OrdinalIgnoreCase));
-            if (account != null) _data.CurrentAccountId = account.Id;
+            if (account == null)
+            {
+                account = new AccountRecord { Username = username, GameId = username, Note = "从本机 Steam 自动识别" };
+                _data.Accounts.Insert(0, account);
+            }
+            _data.CurrentAccountId = account.Id;
+            SaveData(false);
         }
 
         private async Task LoginAccountAsync(AccountRecord account)
@@ -583,13 +603,14 @@ namespace SteamLoginLite
             button.FlatAppearance.BorderColor = primary ? _blue : _border;
             button.FlatAppearance.MouseOverBackColor = hover;
             button.FlatAppearance.MouseDownBackColor = primary ? Color.FromArgb(45, 68, 176) : Color.FromArgb(235, 240, 247);
+            UiStyle.Round(button, 8);
             button.Click += (_, __) => action();
             return button;
         }
 
         private DataGridView CreateGrid(bool allowCheckEditing = false)
         {
-            return new DataGridView
+            var grid = new DataGridView
             {
                 Dock = DockStyle.Fill,
                 AutoGenerateColumns = false,
@@ -599,10 +620,11 @@ namespace SteamLoginLite
                 ReadOnly = !allowCheckEditing,
                 EditMode = DataGridViewEditMode.EditOnEnter,
                 MultiSelect = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                SelectionMode = DataGridViewSelectionMode.CellSelect,
+                ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText,
                 RowHeadersVisible = false,
                 BackgroundColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle,
+                BorderStyle = BorderStyle.None,
                 CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
                 ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single,
                 GridColor = Color.FromArgb(232, 236, 243),
@@ -629,6 +651,36 @@ namespace SteamLoginLite
                     Padding = new Padding(5, 0, 5, 0)
                 }
             };
+            EnableGridCopy(grid);
+            UiStyle.Round(grid, 10);
+            return grid;
+        }
+
+        private static void EnableGridCopy(DataGridView grid)
+        {
+            var menu = new ContextMenuStrip();
+            var copy = new ToolStripMenuItem("复制单元格内容");
+            copy.Click += (_, __) => CopyCurrentCell(grid);
+            menu.Items.Add(copy);
+            menu.Opening += (_, __) => copy.Enabled = grid.CurrentCell != null && grid.CurrentCell.FormattedValue != null;
+            grid.ContextMenuStrip = menu;
+            grid.CellMouseDown += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Right && e.RowIndex >= 0 && e.ColumnIndex >= 0) grid.CurrentCell = grid[e.ColumnIndex, e.RowIndex];
+            };
+            grid.KeyDown += (_, e) =>
+            {
+                if (!e.Control || e.KeyCode != Keys.C) return;
+                CopyCurrentCell(grid);
+                e.SuppressKeyPress = true;
+            };
+        }
+
+        private static void CopyCurrentCell(DataGridView grid)
+        {
+            var value = Convert.ToString(grid.CurrentCell?.FormattedValue);
+            if (string.IsNullOrEmpty(value)) return;
+            try { Clipboard.SetText(value); } catch { }
         }
 
         private static void AddActionColumn(DataGridView grid, string name, string text, bool danger = false) => grid.Columns.Add(new DataGridViewButtonColumn

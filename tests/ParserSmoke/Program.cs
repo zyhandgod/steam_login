@@ -5,10 +5,12 @@ internal static class Program
 {
     private static int Main()
     {
-        Check("user----pass----mail\\@example.com----123456", "user", "user", "mail@example.com");
-        Check("user---pass---mail@example.com---123456---pubgName", "user", "pubgName", "mail@example.com");
-        Check("user--pass--mail@example.com--123456", "user", "user", "mail@example.com");
-        Check("账号user密码pass邮箱账号mail\\@example.com邮箱密码123456邮箱地址example.com", "user", "user", "mail@example.com");
+        Check("user----pass----mail\\@example.com----123456", "user", "pass", "user", "mail@example.com");
+        Check("user---pass---mail@example.com---123456---pubgName", "user", "pass", "pubgName", "mail@example.com");
+        Check("user--pass--mail@example.com--123456", "user", "pass", "user", "mail@example.com");
+        Check("账号user密码pass邮箱账号mail\\@example.com邮箱密码123456邮箱地址example.com", "user", "pass", "user", "mail@example.com");
+        Check("fxols54967--sltm34244M", "fxols54967", "sltm34244M", "fxols54967", "");
+        Check("账号fxols54967密码sltm34244M", "fxols54967", "sltm34244M", "fxols54967", "");
 
         var invalid = ImportParser.Parse("only-one-part");
         if (invalid.Count != 1 || invalid[0].IsValid) return Fail("invalid input accepted");
@@ -22,14 +24,14 @@ internal static class Program
         CheckStatus("Permanently banned", "永久封禁");
         CheckStatus("PermanentBan", "永久封禁");
 
-        Console.WriteLine("Smoke tests passed: import 6/6, status 5/5");
+        Console.WriteLine("Smoke tests passed: import 8/8, status 5/5");
         return 0;
     }
 
-    private static void Check(string input, string username, string gameId, string email)
+    private static void Check(string input, string username, string password, string gameId, string email)
     {
         var result = ImportParser.Parse(input);
-        if (result.Count != 1 || !result[0].IsValid || result[0].Username != username || result[0].GameId != gameId || result[0].Email != email)
+        if (result.Count != 1 || !result[0].IsValid || result[0].Username != username || result[0].Password != password || result[0].GameId != gameId || result[0].Email != email)
             throw new Exception("Parse mismatch: " + input);
     }
 

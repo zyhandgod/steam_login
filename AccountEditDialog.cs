@@ -39,7 +39,8 @@ namespace SteamLoginLite
             _note.Text = account.Note;
 
             var table = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28, 24, 28, 22), ColumnCount = 2, RowCount = 7, BackColor = Color.White };
-            table.Paint += (_, e) => { using (var pen = new Pen(Color.FromArgb(224, 230, 239))) e.Graphics.DrawRectangle(pen, 0, 0, table.Width - 1, table.Height - 1); };
+            table.Paint += (_, e) => UiStyle.DrawRoundedBorder(e.Graphics, new Rectangle(0, 0, table.Width - 1, table.Height - 1), 12, Color.FromArgb(224, 230, 239));
+            UiStyle.Round(table, 12);
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             AddRow(table, 0, "Steam 账号", _username);
@@ -55,6 +56,8 @@ namespace SteamLoginLite
             save.FlatAppearance.MouseOverBackColor = Color.FromArgb(56, 82, 210);
             cancel.FlatAppearance.BorderColor = Color.FromArgb(224, 230, 239);
             cancel.FlatAppearance.MouseOverBackColor = Color.FromArgb(245, 248, 252);
+            UiStyle.Round(save, 8);
+            UiStyle.Round(cancel, 8);
             save.Click += (_, e) =>
             {
                 if (Username.Length == 0) { MessageBox.Show("Steam 账号不能为空。"); DialogResult = DialogResult.None; }

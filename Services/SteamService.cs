@@ -36,19 +36,55 @@ namespace SteamLoginLite.Services
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(steamPath)) return "";
-                var vdfPath = Path.Combine(Path.GetDirectoryName(steamPath), "config", "loginusers.vdf");
-                if (!File.Exists(vdfPath)) return "";
-                var content = File.ReadAllText(vdfPath, Encoding.UTF8);
-                foreach (Match block in Regex.Matches(content, "\"\\d+\"\\s*\\{(?<body>.*?)\\}", RegexOptions.Singleline))
+                if (!string.IsNullOrWhiteSpace(steamPath))
                 {
-                    var body = block.Groups["body"].Value;
-                    if (!Regex.IsMatch(body, "\"MostRecent\"\\s*\"1\"", RegexOptions.IgnoreCase)) continue;
-                    var account = Regex.Match(body, "\"AccountName\"\\s*\"(?<name>[^\"]+)\"", RegexOptions.IgnoreCase);
-                    if (account.Success) return account.Groups["name"].Value;
+                    var steamDirectory = Path.GetDirectoryName(steamPath);
+                    if (!string.IsNullOrWhiteSpace(steamDirectory))
+                    {
+                        var vdfPath = Path.Combine(steamDirectory, "config", "loginusers.vdf");
+                        var recent = ReadMostRecentAccount(vdfPath);
+                        if (!string.IsNullOrWhiteSpace(recent)) return recent;
+                    }
+                }
+                using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam"))
+                {
+                    var autoLoginUser = Convert.ToString(key?.GetValue("AutoLoginUser"));
+                    if (!string.IsNullOrWhiteSpace(autoLoginUser)) return autoLoginUser.Trim();
+                }
+                var userNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    Environment.UserName,
+                    Environment.GetEnvironmentVariable("USER") ?? ""
+                };
+                foreach (var userName in userNames)
+                {
+                    if (string.IsNullOrWhiteSpace(userName)) continue;
+                    foreach (var vdfPath in new[]
+                    {
+                        @"Z:\Users\" + userName + @"\Library\Application Support\Steam\config\loginusers.vdf",
+                        @"Z:\home\" + userName + @"\.steam\steam\config\loginusers.vdf"
+                    })
+                    {
+                        var recent = ReadMostRecentAccount(vdfPath);
+                        if (!string.IsNullOrWhiteSpace(recent)) return recent;
+                    }
                 }
             }
             catch { }
+            return "";
+        }
+
+        private static string ReadMostRecentAccount(string vdfPath)
+        {
+            if (!File.Exists(vdfPath)) return "";
+            var content = File.ReadAllText(vdfPath, Encoding.UTF8);
+            foreach (Match block in Regex.Matches(content, "\"\\d+\"\\s*\\{(?<body>.*?)\\}", RegexOptions.Singleline))
+            {
+                var body = block.Groups["body"].Value;
+                if (!Regex.IsMatch(body, "\"MostRecent\"\\s*\"1\"", RegexOptions.IgnoreCase)) continue;
+                var account = Regex.Match(body, "\"AccountName\"\\s*\"(?<name>[^\"]+)\"", RegexOptions.IgnoreCase);
+                if (account.Success) return account.Groups["name"].Value;
+            }
             return "";
         }
 
