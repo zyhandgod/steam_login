@@ -51,10 +51,7 @@ public sealed partial class QueryWindow : Window
         {
             var runtimeVersion = CoreWebView2Environment.GetAvailableBrowserVersionString();
             if (string.IsNullOrWhiteSpace(runtimeVersion)) throw new InvalidOperationException("未检测到 WebView2 Runtime");
-            var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SteamLoginLite", "webview2");
-            Directory.CreateDirectory(dataDirectory);
-            var environment = await CoreWebView2Environment.CreateAsync(null, dataDirectory);
-            await Browser.EnsureCoreWebView2Async(environment);
+            await Browser.EnsureCoreWebView2Async();
             Browser.CoreWebView2.WebResourceResponseReceived += OnWebResourceResponseReceived;
             UpdateProgress();
             Browser.Source = new Uri(PageUrl);
@@ -82,8 +79,9 @@ public sealed partial class QueryWindow : Window
         try
         {
             using var stream = await args.Response.GetContentAsync();
-            using var reader = new StreamReader(stream);
-            var result = _parser.Parse(await reader.ReadToEndAsync(), CurrentId);
+            using var reader = new Windows.Storage.Streams.DataReader(stream.GetInputStreamAt(0));
+            await reader.LoadAsync((uint)stream.Size);
+            var result = _parser.Parse(reader.ReadString((uint)stream.Size), CurrentId);
             if (result != null) DispatcherQueue.TryEnqueue(() => AcceptResult(result));
         }
         catch { }
