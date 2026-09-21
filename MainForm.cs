@@ -63,21 +63,19 @@ namespace SteamLoginLite
         private void BuildShell()
         {
             var sidebar = new Panel { Dock = DockStyle.Left, Width = 224, BackColor = _navy, Padding = new Padding(16, 20, 16, 18) };
-            var brand = new Panel { Height = 72, Dock = DockStyle.Top, BackColor = _navy, Padding = new Padding(42, 0, 0, 0) };
+            var brand = new Panel { Height = 64, Dock = DockStyle.Top, BackColor = _navy, Padding = new Padding(42, 0, 0, 0) };
             Image brandLogo = null;
             try { brandLogo = Icon?.ToBitmap(); } catch { }
-            var brandTitle = new Label { Text = "Steam切换器", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Dock = DockStyle.Top, Height = 34, TextAlign = ContentAlignment.BottomLeft };
-            var brandCaption = new Label { Text = "ACCOUNT WORKSPACE", ForeColor = Color.FromArgb(137, 157, 187), Font = new Font(Font.FontFamily, 7.5F, FontStyle.Bold), Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.TopLeft };
-            brand.Controls.Add(brandCaption);
+            var brandTitle = new Label { Text = "Steam切换器", ForeColor = Color.White, Font = new Font(Font.FontFamily, 15, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
             brand.Controls.Add(brandTitle);
             brand.Paint += (_, e) =>
             {
                 if (brandLogo != null)
                 {
                     e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    e.Graphics.DrawImage(brandLogo, new Rectangle(0, 19, 28, 28));
+                    e.Graphics.DrawImage(brandLogo, new Rectangle(0, 18, 28, 28));
                 }
-                else using (var brush = new SolidBrush(_blue)) e.Graphics.FillEllipse(brush, 0, 21, 24, 24);
+                else using (var brush = new SolidBrush(_blue)) e.Graphics.FillEllipse(brush, 0, 20, 24, 24);
             };
             brand.Disposed += (_, __) => brandLogo?.Dispose();
             sidebar.Controls.Add(NavButton("设置", NavIcon.Settings, ShowSettingsPage));
