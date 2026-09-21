@@ -6,6 +6,7 @@
 
 ## 功能
 
+- WinUI 3 极简原生界面，账号表格右侧提供独立的登录、查询、编辑、删除按钮
 - 账号密码方式切换 Steam，避免修改 `loginusers.vdf` 带来的长时间 Loading
 - 批量导入仅账号密码的两段格式，以及包含邮箱信息的四段、五段格式；支持中文标签、`--`、`---`、`----` 分隔
 - 查询 ID 为空时自动使用 Steam 账号名
@@ -18,8 +19,9 @@
 ## 运行要求
 
 - Windows 10/11 x64
-- .NET Framework 4.8（Windows 10/11 通常已安装）
 - Microsoft Edge WebView2 Runtime（Windows 10/11 通常随 Edge 安装）
+
+下载 ZIP 后完整解压，双击 `SteamLoginLite.exe` 即可运行。程序已自带 .NET 8 与 Windows App SDK 运行组件，不需要安装本工具或另外安装 .NET。
 
 如果未安装 WebView2 Runtime，程序会使用系统默认浏览器打开 PUBG.PLUS，并自动复制当前查询 ID。默认浏览器模式无法自动回填查询结果。
 
@@ -28,11 +30,11 @@
 在装有 Visual Studio 2022 或 .NET SDK 的 Windows 上执行：
 
 ```powershell
-dotnet restore
-dotnet build -c Release
+dotnet restore -r win-x64
+dotnet publish SteamLoginLite.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 ```
 
-输出位于 `bin/Release/net48`。复制整个目录到一个可写文件夹即可使用，无需安装。
+输出位于 `publish/win-x64`。复制整个目录到一个可写文件夹即可使用，无需安装。
 
 ## 数据说明
 
