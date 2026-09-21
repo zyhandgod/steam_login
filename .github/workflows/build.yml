@@ -16,7 +16,17 @@ jobs:
       - run: dotnet restore -r win-x64
       - run: dotnet restore tests/ParserSmoke/ParserSmoke.csproj
       - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
-      - run: dotnet publish SteamLoginLite.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/win-x64
+      - name: Publish WinUI portable app
+        shell: pwsh
+        run: |
+          $lines = dotnet publish SteamLoginLite.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/win-x64 2>&1
+          $exitCode = $LASTEXITCODE
+          $lines | ForEach-Object { Write-Host $_ }
+          "### Windows build output" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          '```text' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          $lines | Select-Object -Last 120 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          exit $exitCode
       - uses: actions/upload-artifact@v4
         with:
           name: SteamLoginLite-win-x64
