@@ -26,6 +26,7 @@ namespace SteamLoginLite
         private readonly Panel _content = new Panel();
         private readonly Label _pageTitle = new Label();
         private DataGridView _accountsGrid;
+        private DataGridView _actionsGrid;
         private TextBox _searchBox;
         private TextBox _importText;
         private DataGridView _previewGrid;
@@ -234,6 +235,7 @@ namespace SteamLoginLite
             toolbar.Controls.Add(ActionButton("批量删除", DeleteSelected, false));
 
             _accountsGrid = CreateGrid(true);
+            _accountsGrid.ScrollBars = ScrollBars.Horizontal;
             _accountsGrid.Columns.Add(new DataGridViewCheckBoxColumn { HeaderText = "选择", DataPropertyName = "UiSelected", Width = 48, ReadOnly = false });
             AddColumn(_accountsGrid, "账号", "Username", 125);
             AddColumn(_accountsGrid, "查询ID", "EffectiveGameId", 125);
@@ -242,50 +244,58 @@ namespace SteamLoginLite
                 Name = "TierLevel",
                 HeaderText = "等级",
                 DataPropertyName = "LevelText",
-                MinimumWidth = 88,
-                Width = 88,
+                MinimumWidth = 125,
+                Width = 125,
                 ReadOnly = true,
                 SortMode = DataGridViewColumnSortMode.NotSortable
             });
-            AddColumn(_accountsGrid, "封禁状态", "Status", 92);
+            _accountsGrid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "BanStatus",
+                HeaderText = "封禁状态",
+                DataPropertyName = "Status",
+                MinimumWidth = 105,
+                Width = 105,
+                ReadOnly = true,
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            });
             AddColumn(_accountsGrid, "最后登录", "LastLoginText", 145);
             AddColumn(_accountsGrid, "最后查询", "LastQueryText", 145);
             AddColumn(_accountsGrid, "备注", "Note", 100);
-            AddActionColumn(_accountsGrid, "LoginAction", "登录");
-            AddActionColumn(_accountsGrid, "QueryAction", "查询");
-            AddActionColumn(_accountsGrid, "EditAction", "编辑");
-            AddActionColumn(_accountsGrid, "DeleteAction", "删除", true);
-            _accountsGrid.CellFormatting += (_, e) =>
-            {
-                var property = _accountsGrid.Columns[e.ColumnIndex].DataPropertyName;
-                if (property != "Status" || e.Value == null) return;
-                var status = e.Value.ToString();
-                var statusColor = status == "正常" ? Color.FromArgb(14, 159, 110) : status.Contains("封禁") ? Color.FromArgb(220, 53, 69) : Color.FromArgb(99, 115, 136);
-                var statusBackground = status == "正常" ? Color.FromArgb(239, 251, 245) : status.Contains("封禁") ? Color.FromArgb(255, 243, 244) : Color.FromArgb(247, 249, 252);
-                e.CellStyle.ForeColor = statusColor;
-                e.CellStyle.SelectionForeColor = statusColor;
-                e.CellStyle.BackColor = statusBackground;
-                e.CellStyle.SelectionBackColor = statusBackground;
-                e.CellStyle.Font = new Font(Font, FontStyle.Bold);
-            };
             _accountsGrid.CellPainting += PaintTierLevelCell;
+            _accountsGrid.CellPainting += PaintBanStatusCell;
             _accountsGrid.CurrentCellDirtyStateChanged += (_, __) =>
             {
                 if (_accountsGrid.IsCurrentCellDirty) _accountsGrid.CommitEdit(DataGridViewDataErrorContexts.Commit);
             };
-            _accountsGrid.CellContentClick += async (_, e) =>
+            _actionsGrid = CreateGrid();
+            _actionsGrid.Dock = DockStyle.Right;
+            _actionsGrid.Width = 273;
+            _actionsGrid.ScrollBars = ScrollBars.Vertical;
+            AddActionColumn(_actionsGrid, "LoginAction", "登录");
+            AddActionColumn(_actionsGrid, "QueryAction", "查询");
+            AddActionColumn(_actionsGrid, "EditAction", "编辑");
+            AddActionColumn(_actionsGrid, "DeleteAction", "删除", true);
+            _actionsGrid.CellContentClick += async (_, e) =>
             {
                 if (e.RowIndex < 0) return;
-                var action = _accountsGrid.Columns[e.ColumnIndex].Name;
+                var action = _actionsGrid.Columns[e.ColumnIndex].Name;
                 if (action != "LoginAction" && action != "QueryAction" && action != "EditAction" && action != "DeleteAction") return;
-                var account = _accountsGrid.Rows[e.RowIndex].DataBoundItem as AccountRecord;
+                var account = _actionsGrid.Rows[e.RowIndex].DataBoundItem as AccountRecord;
                 if (account == null) return;
                 if (action == "LoginAction") { await LoginAccountAsync(account); return; }
                 if (action == "EditAction") { EditAccount(account); return; }
                 if (action == "DeleteAction") { DeleteAccount(account); return; }
                 RunPubgPlusQuery(new List<AccountRecord> { account });
             };
-            _content.Controls.Add(_accountsGrid);
+            _accountsGrid.Scroll += (_, e) => SyncGridScroll(_accountsGrid, _actionsGrid, e.ScrollOrientation);
+            _actionsGrid.Scroll += (_, e) => SyncGridScroll(_actionsGrid, _accountsGrid, e.ScrollOrientation);
+            _accountsGrid.MouseWheel += (_, e) => ScrollAccountRows(e.Delta > 0 ? -3 : 3);
+            var gridHost = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
+            gridHost.Controls.Add(_accountsGrid);
+            gridHost.Controls.Add(_actionsGrid);
+            _actionsGrid.BringToFront();
+            _content.Controls.Add(gridHost);
             _content.Controls.Add(toolbar);
             _content.Controls.Add(CreateSummaryPanel());
             RefreshAccounts();
@@ -437,20 +447,68 @@ namespace SteamLoginLite
                 (term.Length == 0 || a.Username.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.EffectiveGameId.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.Status.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)).ToList();
             _accountsGrid.DataSource = null;
             _accountsGrid.DataSource = items;
+            if (_actionsGrid != null)
+            {
+                _actionsGrid.DataSource = null;
+                _actionsGrid.DataSource = items;
+            }
             foreach (DataGridViewRow row in _accountsGrid.Rows)
             {
                 var account = row.DataBoundItem as AccountRecord;
                 if (account == null || !account.UiIsCurrent) continue;
-                row.DefaultCellStyle.BackColor = Color.FromArgb(246, 255, 237);
-                row.DefaultCellStyle.SelectionBackColor = Color.FromArgb(246, 255, 237);
-                row.DefaultCellStyle.SelectionForeColor = Color.FromArgb(38, 38, 38);
-                row.DefaultCellStyle.Font = new Font(Font, FontStyle.Bold);
+                ApplyCurrentAccountStyle(row);
+            }
+            if (_actionsGrid != null)
+            {
+                foreach (DataGridViewRow row in _actionsGrid.Rows)
+                {
+                    var account = row.DataBoundItem as AccountRecord;
+                    if (account == null || !account.UiIsCurrent) continue;
+                    ApplyCurrentAccountStyle(row);
+                }
             }
             SetStat("stat_total", _data.Accounts.Count);
             SetStat("stat_normal", _data.Accounts.Count(a => a.Status == "正常"));
             SetStat("stat_temp", _data.Accounts.Count(a => a.Status == "临时封禁"));
             SetStat("stat_permanent", _data.Accounts.Count(a => a.Status == "永久封禁"));
             UpdateStatCardSelection();
+        }
+
+        private void ApplyCurrentAccountStyle(DataGridViewRow row)
+        {
+            row.DefaultCellStyle.BackColor = Color.FromArgb(246, 255, 237);
+            row.DefaultCellStyle.SelectionBackColor = Color.FromArgb(246, 255, 237);
+            row.DefaultCellStyle.SelectionForeColor = Color.FromArgb(38, 38, 38);
+            row.DefaultCellStyle.Font = new Font(Font, FontStyle.Bold);
+        }
+
+        private bool _syncingGridScroll;
+
+        private void SyncGridScroll(DataGridView source, DataGridView target, ScrollOrientation orientation)
+        {
+            if (_syncingGridScroll || orientation != ScrollOrientation.VerticalScroll || source == null || target == null || source.RowCount == 0 || target.RowCount == 0) return;
+            var first = source.FirstDisplayedScrollingRowIndex;
+            if (first < 0 || first >= target.RowCount) return;
+            try
+            {
+                _syncingGridScroll = true;
+                target.FirstDisplayedScrollingRowIndex = first;
+            }
+            finally { _syncingGridScroll = false; }
+        }
+
+        private void ScrollAccountRows(int offset)
+        {
+            if (_accountsGrid == null || _actionsGrid == null || _accountsGrid.RowCount == 0) return;
+            var current = Math.Max(0, _accountsGrid.FirstDisplayedScrollingRowIndex);
+            var target = Math.Max(0, Math.Min(_accountsGrid.RowCount - 1, current + offset));
+            try
+            {
+                _syncingGridScroll = true;
+                _accountsGrid.FirstDisplayedScrollingRowIndex = target;
+                _actionsGrid.FirstDisplayedScrollingRowIndex = target;
+            }
+            finally { _syncingGridScroll = false; }
         }
 
         private void SetStat(string name, int value)
@@ -541,7 +599,7 @@ namespace SteamLoginLite
             }
             var textBounds = new Rectangle(left, e.CellBounds.Top, Math.Max(1, e.CellBounds.Right - left - 4), e.CellBounds.Height);
             TextRenderer.DrawText(e.Graphics, account.LevelText, e.CellStyle.Font ?? Font, textBounds, textColor,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
             e.Handled = true;
         }
 
@@ -557,6 +615,42 @@ namespace SteamLoginLite
             }
             _tierIcons[tier] = cached;
             return cached;
+        }
+
+        private void PaintBanStatusCell(object sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _accountsGrid.Columns[e.ColumnIndex].Name != "BanStatus") return;
+            var account = _accountsGrid.Rows[e.RowIndex].DataBoundItem as AccountRecord;
+            if (account == null) return;
+
+            e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border | DataGridViewPaintParts.SelectionBackground);
+            var status = account.Status ?? "";
+            Color accent;
+            if (status == "正常") accent = Color.FromArgb(46, 213, 115);
+            else if (status == "临时封禁") accent = Color.FromArgb(255, 165, 2);
+            else if (status == "永久封禁") accent = Color.FromArgb(255, 71, 87);
+            else accent = Color.FromArgb(99, 115, 136);
+
+            using (var statusFont = new Font(e.CellStyle.Font ?? Font, FontStyle.Bold))
+            {
+                var measured = TextRenderer.MeasureText(status, statusFont, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                var tagWidth = Math.Min(e.CellBounds.Width - 12, measured.Width + 18);
+                var tagHeight = Math.Min(26, e.CellBounds.Height - 10);
+                var tagBounds = new Rectangle(e.CellBounds.Left + 6, e.CellBounds.Top + (e.CellBounds.Height - tagHeight) / 2, tagWidth, tagHeight);
+                var previousMode = e.Graphics.SmoothingMode;
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using (var path = UiStyle.RoundedPath(tagBounds, 4))
+                using (var fill = new SolidBrush(Color.FromArgb(51, accent)))
+                using (var border = new Pen(Color.FromArgb(128, accent)))
+                {
+                    e.Graphics.FillPath(fill, path);
+                    e.Graphics.DrawPath(border, path);
+                }
+                e.Graphics.SmoothingMode = previousMode;
+                TextRenderer.DrawText(e.Graphics, status, statusFont, tagBounds, accent,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+            }
+            e.Handled = true;
         }
 
         private void DeleteSelected()
