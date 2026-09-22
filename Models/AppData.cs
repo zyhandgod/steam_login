@@ -21,6 +21,7 @@ namespace SteamLoginLite.Models
         public string EncryptedEmailPassword { get; set; } = "";
         public string GameId { get; set; } = "";
         public int? Level { get; set; }
+        public int? Tier { get; set; }
         public string Status { get; set; } = "未查询";
         public string RawStatus { get; set; } = "";
         public string Note { get; set; } = "";
@@ -34,7 +35,7 @@ namespace SteamLoginLite.Models
         public bool UiIsCurrent { get; set; }
 
         public string EffectiveGameId => string.IsNullOrWhiteSpace(GameId) ? Username : GameId;
-        public string LevelText => Level.HasValue ? Level.Value.ToString() : "—";
+        public string LevelText => Level.HasValue ? "Lv." + Level.Value : "—";
         public string LastLoginText => FormatTime(LastLoginAt);
         public string LastQueryText => FormatTime(LastQueryAt);
         private static string FormatTime(long value)

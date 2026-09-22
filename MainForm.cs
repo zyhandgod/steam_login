@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -38,6 +39,7 @@ namespace SteamLoginLite
         private CancellationTokenSource _operation = new CancellationTokenSource();
         private string _statusFilter = "";
         private readonly List<Button> _navButtons = new List<Button>();
+        private readonly Dictionary<int, Image> _tierIcons = new Dictionary<int, Image>();
         private Button _activeNavButton;
 
         public MainForm()
@@ -58,6 +60,11 @@ namespace SteamLoginLite
             if (_navButtons.Count > 0) SetActiveNav(_navButtons[_navButtons.Count - 1]);
             ShowAccountsPage();
             FormClosing += (_, __) => { _operation.Cancel(); SaveData(false); };
+            FormClosed += (_, __) =>
+            {
+                foreach (var image in _tierIcons.Values) image.Dispose();
+                _tierIcons.Clear();
+            };
         }
 
         private void BuildShell()
@@ -230,7 +237,16 @@ namespace SteamLoginLite
             _accountsGrid.Columns.Add(new DataGridViewCheckBoxColumn { HeaderText = "选择", DataPropertyName = "UiSelected", Width = 48, ReadOnly = false });
             AddColumn(_accountsGrid, "账号", "Username", 125);
             AddColumn(_accountsGrid, "查询ID", "EffectiveGameId", 125);
-            AddColumn(_accountsGrid, "等级", "LevelText", 55);
+            _accountsGrid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "TierLevel",
+                HeaderText = "等级",
+                DataPropertyName = "LevelText",
+                MinimumWidth = 88,
+                Width = 88,
+                ReadOnly = true,
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            });
             AddColumn(_accountsGrid, "封禁状态", "Status", 92);
             AddColumn(_accountsGrid, "最后登录", "LastLoginText", 145);
             AddColumn(_accountsGrid, "最后查询", "LastQueryText", 145);
@@ -252,6 +268,7 @@ namespace SteamLoginLite
                 e.CellStyle.SelectionBackColor = statusBackground;
                 e.CellStyle.Font = new Font(Font, FontStyle.Bold);
             };
+            _accountsGrid.CellPainting += PaintTierLevelCell;
             _accountsGrid.CurrentCellDirtyStateChanged += (_, __) =>
             {
                 if (_accountsGrid.IsCurrentCellDirty) _accountsGrid.CommitEdit(DataGridViewDataErrorContexts.Commit);
@@ -495,6 +512,7 @@ namespace SteamLoginLite
                         account.Status = result.Status;
                         account.RawStatus = result.RawStatus;
                         account.Level = result.Level;
+                        account.Tier = result.Tier > 0 ? (int?)result.Tier : null;
                         account.LastQueryAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
                     }
                     SaveData();
@@ -502,6 +520,43 @@ namespace SteamLoginLite
                 };
                 dialog.ShowDialog(this);
             }
+        }
+
+        private void PaintTierLevelCell(object sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _accountsGrid.Columns[e.ColumnIndex].Name != "TierLevel") return;
+            var account = _accountsGrid.Rows[e.RowIndex].DataBoundItem as AccountRecord;
+            if (account == null) return;
+
+            e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border | DataGridViewPaintParts.SelectionBackground);
+            var selected = (_accountsGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].State & DataGridViewElementStates.Selected) != 0;
+            var textColor = selected ? e.CellStyle.SelectionForeColor : e.CellStyle.ForeColor;
+            var icon = account.Tier.HasValue ? GetTierIcon(account.Tier.Value) : null;
+            var left = e.CellBounds.Left + 8;
+            if (icon != null)
+            {
+                var iconSize = Math.Min(28, e.CellBounds.Height - 10);
+                e.Graphics.DrawImage(icon, new Rectangle(left, e.CellBounds.Top + (e.CellBounds.Height - iconSize) / 2, iconSize, iconSize));
+                left += iconSize + 5;
+            }
+            var textBounds = new Rectangle(left, e.CellBounds.Top, Math.Max(1, e.CellBounds.Right - left - 4), e.CellBounds.Height);
+            TextRenderer.DrawText(e.Graphics, account.LevelText, e.CellStyle.Font ?? Font, textBounds, textColor,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            e.Handled = true;
+        }
+
+        private Image GetTierIcon(int tier)
+        {
+            Image cached;
+            if (_tierIcons.TryGetValue(tier, out cached)) return cached;
+            if (tier < 1 || tier > 5) return null;
+            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("SteamLoginLite.Assets.tier" + tier + ".png"))
+            {
+                if (stream == null) return null;
+                using (var source = Image.FromStream(stream)) cached = new Bitmap(source);
+            }
+            _tierIcons[tier] = cached;
+            return cached;
         }
 
         private void DeleteSelected()

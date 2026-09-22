@@ -36,13 +36,16 @@ namespace SteamLoginLite.Services
                 var raw = GetString(player, "ban");
                 int level;
                 if (raw.Length == 0 || !TryGetInt(player, "level", out level) || level < 0) return null;
+                int tier;
+                if (!TryGetInt(player, "tier", out tier) || tier < 1 || tier > 5) tier = 0;
 
                 return new PubgPlusResult
                 {
                     GameId = expectedId,
                     RawStatus = raw,
                     Status = BanStatusNormalizer.Normalize(raw),
-                    Level = level
+                    Level = level,
+                    Tier = tier
                 };
             }
             catch { return null; }

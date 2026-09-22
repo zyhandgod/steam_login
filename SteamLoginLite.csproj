@@ -26,6 +26,13 @@
   <ItemGroup>
     <Compile Remove="tests/**/*.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets/tier1.png" LogicalName="SteamLoginLite.Assets.tier1.png" />
+    <EmbeddedResource Include="Assets/tier2.png" LogicalName="SteamLoginLite.Assets.tier2.png" />
+    <EmbeddedResource Include="Assets/tier3.png" LogicalName="SteamLoginLite.Assets.tier3.png" />
+    <EmbeddedResource Include="Assets/tier4.png" LogicalName="SteamLoginLite.Assets.tier4.png" />
+    <EmbeddedResource Include="Assets/tier5.png" LogicalName="SteamLoginLite.Assets.tier5.png" />
+  </ItemGroup>
   <Target Name="CopyX64WebView2Loader" AfterTargets="Build">
     <Copy SourceFiles="$(OutputPath)runtimes/win-x64/native/WebView2Loader.dll"
           DestinationFolder="$(OutputPath)"

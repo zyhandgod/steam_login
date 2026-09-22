@@ -6,5 +6,6 @@ namespace SteamLoginLite.Models
         public string Status { get; set; } = "";
         public string RawStatus { get; set; } = "";
         public int Level { get; set; }
+        public int Tier { get; set; }
     }
 }
