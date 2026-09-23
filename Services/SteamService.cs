@@ -93,14 +93,74 @@ namespace SteamLoginLite.Services
             if (!File.Exists(steamPath)) throw new FileNotFoundException("找不到 Steam，请在设置中选择 steam.exe。", steamPath);
             await StopSteamAsync(token);
             await Task.Delay(1200, token);
+            TryApplyLoginPreferences(steamPath, username, settings, false);
             Process.Start(new ProcessStartInfo
             {
                 FileName = steamPath,
-                Arguments = "-login " + Quote(username) + " " + Quote(password),
+                Arguments = "-noreactlogin -login " + Quote(username) + " " + Quote(password),
                 WorkingDirectory = Path.GetDirectoryName(steamPath),
                 UseShellExecute = false
             });
-            _ = RunPostLoginActionsAsync(settings, token);
+            _ = RunPostLoginActionsAsync(steamPath, username, settings, token);
+        }
+
+        private static PreferenceApplyState TryApplyLoginPreferences(string steamPath, string username, AppSettings settings, bool requireStableFile)
+        {
+            if (!settings.CloseRecommendations && !settings.CloseFriendsList) return PreferenceApplyState.Applied;
+            try
+            {
+                var steamDirectory = Path.GetDirectoryName(steamPath);
+                if (string.IsNullOrWhiteSpace(steamDirectory)) return PreferenceApplyState.Pending;
+                var steamId = FindSteamIdForAccount(Path.Combine(steamDirectory, "config", "loginusers.vdf"), username);
+                if (!steamId.HasValue) return PreferenceApplyState.Pending;
+                var accountId = (uint)(steamId.Value & uint.MaxValue);
+                var localConfig = Path.Combine(steamDirectory, "userdata", accountId.ToString(), "config", "localconfig.vdf");
+                if (!File.Exists(localConfig)) return PreferenceApplyState.Pending;
+                if (requireStableFile && DateTime.UtcNow - File.GetLastWriteTimeUtc(localConfig) < TimeSpan.FromSeconds(2))
+                    return PreferenceApplyState.Pending;
+                return SteamVdfConfig.ApplyPopupPreferences(localConfig, settings.CloseRecommendations, settings.CloseFriendsList)
+                    ? PreferenceApplyState.Applied
+                    : PreferenceApplyState.Pending;
+            }
+            catch (InvalidDataException ex)
+            {
+                LogPreferenceWarning(ex);
+                return PreferenceApplyState.Failed;
+            }
+            catch (DecoderFallbackException ex)
+            {
+                LogPreferenceWarning(ex);
+                return PreferenceApplyState.Failed;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LogPreferenceWarning(ex);
+                return PreferenceApplyState.Failed;
+            }
+            catch (IOException ex)
+            {
+                LogTransientPreferenceWarning(ex);
+                return PreferenceApplyState.Pending;
+            }
+            catch (Exception ex)
+            {
+                LogPreferenceWarning(ex);
+                return PreferenceApplyState.Failed;
+            }
+        }
+
+        private static ulong? FindSteamIdForAccount(string vdfPath, string username)
+        {
+            if (!File.Exists(vdfPath) || string.IsNullOrWhiteSpace(username)) return null;
+            var content = File.ReadAllText(vdfPath, Encoding.UTF8);
+            foreach (Match block in Regex.Matches(content, "\"(?<steamId>\\d+)\"\\s*\\{(?<body>.*?)\\}", RegexOptions.Singleline))
+            {
+                var account = Regex.Match(block.Groups["body"].Value, "\"AccountName\"\\s*\"(?<name>[^\"]+)\"", RegexOptions.IgnoreCase);
+                ulong steamId;
+                if (account.Success && string.Equals(account.Groups["name"].Value, username, StringComparison.OrdinalIgnoreCase) &&
+                    ulong.TryParse(block.Groups["steamId"].Value, out steamId)) return steamId;
+            }
+            return null;
         }
 
         private static async Task StopSteamAsync(CancellationToken token)
@@ -124,18 +184,26 @@ namespace SteamLoginLite.Services
             var deadline = DateTime.UtcNow.AddSeconds(8);
             while (DateTime.UtcNow < deadline && (Process.GetProcessesByName("steam").Length > 0 || Process.GetProcessesByName("steamwebhelper").Length > 0))
                 await Task.Delay(250, token);
+            if (Process.GetProcessesByName("steam").Length > 0 || Process.GetProcessesByName("steamwebhelper").Length > 0)
+                throw new InvalidOperationException("Steam 未能完全退出，请手动关闭 Steam 后重试。");
         }
 
-        private static async Task RunPostLoginActionsAsync(AppSettings settings, CancellationToken token)
+        private static async Task RunPostLoginActionsAsync(string steamPath, string username, AppSettings settings, CancellationToken token)
         {
             try
             {
                 await Task.Delay(Math.Max(2, settings.StartupDelaySeconds) * 1000, token);
                 var deadline = DateTime.UtcNow.AddSeconds(35);
                 var libraryOpened = false;
+                var preferenceRetriesEnabled = settings.CloseRecommendations || settings.CloseFriendsList;
                 while (DateTime.UtcNow < deadline && !token.IsCancellationRequested)
                 {
                     CloseMatchingSteamWindows(settings);
+                    if (preferenceRetriesEnabled)
+                    {
+                        var state = TryApplyLoginPreferences(steamPath, username, settings, true);
+                        if (state == PreferenceApplyState.Failed) preferenceRetriesEnabled = false;
+                    }
                     if (settings.OpenLibrary && !libraryOpened)
                     {
                         try { Process.Start(new ProcessStartInfo("steam://open/library") { UseShellExecute = true }); libraryOpened = true; }
@@ -146,6 +214,34 @@ namespace SteamLoginLite.Services
             }
             catch { }
         }
+
+        private static void LogPreferenceWarning(Exception exception)
+        {
+            try
+            {
+                var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SteamLoginLite");
+                Directory.CreateDirectory(directory);
+                File.AppendAllText(Path.Combine(directory, "steam-service.log"),
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " 自动关闭 Steam 弹窗配置失败：" + exception.GetType().Name + " - " + exception.Message + Environment.NewLine,
+                    new UTF8Encoding(false));
+            }
+            catch { }
+        }
+
+        private static readonly object PreferenceLogLock = new object();
+        private static DateTime _lastTransientPreferenceLogAt = DateTime.MinValue;
+
+        private static void LogTransientPreferenceWarning(Exception exception)
+        {
+            lock (PreferenceLogLock)
+            {
+                if (DateTime.UtcNow - _lastTransientPreferenceLogAt < TimeSpan.FromSeconds(10)) return;
+                _lastTransientPreferenceLogAt = DateTime.UtcNow;
+            }
+            LogPreferenceWarning(exception);
+        }
+
+        private enum PreferenceApplyState { Pending, Applied, Failed }
 
         private static void CloseMatchingSteamWindows(AppSettings settings)
         {

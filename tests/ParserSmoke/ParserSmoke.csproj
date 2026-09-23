@@ -8,5 +8,6 @@
   <ItemGroup>
     <Compile Include="../../Services/ImportParser.cs" Link="ImportParser.cs" />
     <Compile Include="../../Services/BanStatusNormalizer.cs" Link="BanStatusNormalizer.cs" />
+    <Compile Include="../../Services/SteamVdfConfig.cs" Link="SteamVdfConfig.cs" />
   </ItemGroup>
 </Project>

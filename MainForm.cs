@@ -260,8 +260,8 @@ namespace SteamLoginLite
                 SortMode = DataGridViewColumnSortMode.NotSortable
             });
             AddColumn(_accountsGrid, "最后登录", "LastLoginText", 145);
-            AddColumn(_accountsGrid, "最后查询", "LastQueryText", 145);
             AddColumn(_accountsGrid, "备注", "Note", 100);
+            EnableAccountQuickActions();
             _accountsGrid.CellPainting += PaintTierLevelCell;
             _accountsGrid.CellPainting += PaintBanStatusCell;
             _accountsGrid.CurrentCellDirtyStateChanged += (_, __) =>
@@ -299,6 +299,33 @@ namespace SteamLoginLite
             _content.Controls.Add(toolbar);
             _content.Controls.Add(CreateSummaryPanel());
             RefreshAccounts();
+        }
+
+        private void EnableAccountQuickActions()
+        {
+            _accountsGrid.CellDoubleClick += async (_, e) =>
+            {
+                if (e.RowIndex < 0 || e.ColumnIndex < 0 || _accountsGrid.Columns[e.ColumnIndex].DataPropertyName != "Username") return;
+                var account = _accountsGrid.Rows[e.RowIndex].DataBoundItem as AccountRecord;
+                if (account != null) await LoginAccountAsync(account);
+            };
+
+            var menu = _accountsGrid.ContextMenuStrip;
+            if (menu == null) return;
+            var copyAccountId = new ToolStripMenuItem("复制账号 ID");
+            copyAccountId.Click += (_, __) =>
+            {
+                var account = _accountsGrid.CurrentRow?.DataBoundItem as AccountRecord;
+                if (account == null || string.IsNullOrWhiteSpace(account.Username)) return;
+                try { Clipboard.SetText(account.Username); } catch { }
+            };
+            menu.Items.Insert(0, copyAccountId);
+            menu.Items.Insert(1, new ToolStripSeparator());
+            menu.Opening += (_, __) =>
+            {
+                var account = _accountsGrid.CurrentRow?.DataBoundItem as AccountRecord;
+                copyAccountId.Enabled = account != null && !string.IsNullOrWhiteSpace(account.Username);
+            };
         }
 
         private Control CreateSummaryPanel()
@@ -444,7 +471,9 @@ namespace SteamLoginLite
             var term = (_searchBox?.Text ?? "").Trim();
             var items = _data.Accounts.Where(a =>
                 (string.IsNullOrEmpty(_statusFilter) || a.Status == _statusFilter) &&
-                (term.Length == 0 || a.Username.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.EffectiveGameId.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.Status.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)).ToList();
+                (term.Length == 0 || a.Username.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.EffectiveGameId.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || a.Status.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0))
+                .OrderByDescending(a => a.LastLoginAt)
+                .ToList();
             _accountsGrid.DataSource = null;
             _accountsGrid.DataSource = items;
             if (_actionsGrid != null)
@@ -805,7 +834,7 @@ namespace SteamLoginLite
 
         private static void EnableGridCopy(DataGridView grid)
         {
-            var menu = new ContextMenuStrip();
+            var menu = new ContextMenuStrip { Font = new Font("Microsoft YaHei UI", 9F) };
             var copy = new ToolStripMenuItem("复制单元格内容");
             copy.Click += (_, __) => CopyCurrentCell(grid);
             menu.Items.Add(copy);
