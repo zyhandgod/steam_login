@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Web;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -24,8 +23,11 @@ namespace SteamLoginLite
         private readonly Timer _fillTimer = new Timer { Interval = 500 };
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer();
         private readonly PubgPlusResponseParser _parser = new PubgPlusResponseParser();
+        private readonly object _responseSync = new object();
+        private readonly Dictionary<string, PubgPlusResult> _masteryResults = new Dictionary<string, PubgPlusResult>(StringComparer.OrdinalIgnoreCase);
+        private PubgPlusResult _basicResult;
         private int _index;
-        private bool _reading;
+        private bool _acceptPending;
 
         public event Action<PubgPlusResult> ResultReceived;
 
@@ -76,6 +78,7 @@ namespace SteamLoginLite
                 Directory.CreateDirectory(dataDirectory);
                 var environment = await CoreWebView2Environment.CreateAsync(null, dataDirectory);
                 await _web.EnsureCoreWebView2Async(environment);
+                await _web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("try{localStorage.setItem('pubgSelectedPlatform','steam');}catch(e){}");
                 _web.CoreWebView2.WebResourceResponseReceived += OnWebResourceResponseReceived;
                 _web.CoreWebView2.ProcessFailed += (_, args) => BeginInvoke(new Action(() =>
                     MessageBox.Show("PUBG.PLUS 网页进程异常：" + args.ProcessFailedKind, "查询窗口异常", MessageBoxButtons.OK, MessageBoxIcon.Warning)));
@@ -137,35 +140,113 @@ namespace SteamLoginLite
 
         private async void OnWebResourceResponseReceived(object sender, CoreWebView2WebResourceResponseReceivedEventArgs e)
         {
-            if (_reading || !IsMatchingRequest(e.Request.Uri, CurrentId)) return;
-            _reading = true;
+            var expectedId = CurrentId;
+            string requestAccountId;
+            var requestKind = PubgPlusRequestMatcher.Classify(e.Request.Uri, expectedId, out requestAccountId);
+            if (requestKind == PubgPlusRequestKind.None) return;
             try
             {
                 using (var stream = await e.Response.GetContentAsync())
                 using (var reader = new StreamReader(stream))
                 {
-                    var result = _parser.Parse(await reader.ReadToEndAsync(), CurrentId);
-                    if (result != null) BeginInvoke(new Action(() => AcceptResult(result)));
+                    var body = await reader.ReadToEndAsync();
+                    if (requestKind == PubgPlusRequestKind.Legacy)
+                    {
+                        QueueAcceptedResult(_parser.Parse(body, expectedId));
+                        return;
+                    }
+
+                    if (requestKind == PubgPlusRequestKind.Basic)
+                    {
+                        var basic = _parser.ParseBasic(body, expectedId);
+                        if (basic == null) return;
+                        lock (_responseSync) _basicResult = basic;
+                        ScheduleBasicFallback(expectedId, basic.AccountId);
+                    }
+                    else
+                    {
+                        var mastery = _parser.ParseSurvivalMastery(body, requestAccountId);
+                        if (mastery == null) return;
+                        lock (_responseSync) _masteryResults[mastery.AccountId] = mastery;
+                    }
+
+                    TryQueueCombinedResult(expectedId);
                 }
             }
             catch { }
-            finally { _reading = false; }
         }
 
-        private static bool IsMatchingRequest(string url, string gameId)
+        private void TryQueueCombinedResult(string expectedId)
+        {
+            PubgPlusResult combined = null;
+            lock (_responseSync)
+            {
+                if (_acceptPending || _basicResult == null || !string.Equals(_basicResult.GameId, expectedId, StringComparison.OrdinalIgnoreCase)) return;
+                PubgPlusResult mastery;
+                if (!_masteryResults.TryGetValue(_basicResult.AccountId, out mastery)) return;
+                _acceptPending = true;
+                combined = new PubgPlusResult
+                {
+                    GameId = _basicResult.GameId,
+                    AccountId = _basicResult.AccountId,
+                    RawStatus = _basicResult.RawStatus,
+                    Status = _basicResult.Status,
+                    HasLevel = true,
+                    Level = mastery.Level,
+                    Tier = mastery.Tier
+                };
+            }
+            QueueAcceptedResult(combined);
+        }
+
+        private async void ScheduleBasicFallback(string expectedId, string accountId)
         {
             try
             {
-                var uri = new Uri(url);
-                if (!uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) || !uri.Host.Equals("apiv1.pubg.plus", StringComparison.OrdinalIgnoreCase) || !uri.AbsolutePath.EndsWith("/player/info", StringComparison.OrdinalIgnoreCase)) return false;
-                return string.Equals(HttpUtility.ParseQueryString(uri.Query)["player_id"], gameId, StringComparison.OrdinalIgnoreCase);
+                await System.Threading.Tasks.Task.Delay(4000);
+                PubgPlusResult fallback = null;
+                lock (_responseSync)
+                {
+                    if (_acceptPending || _basicResult == null ||
+                        !string.Equals(_basicResult.GameId, expectedId, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(_basicResult.AccountId, accountId, StringComparison.OrdinalIgnoreCase)) return;
+                    _acceptPending = true;
+                    fallback = new PubgPlusResult
+                    {
+                        GameId = _basicResult.GameId,
+                        AccountId = _basicResult.AccountId,
+                        RawStatus = _basicResult.RawStatus,
+                        Status = _basicResult.Status,
+                        HasLevel = false
+                    };
+                }
+                QueueAcceptedResult(fallback);
             }
-            catch { return false; }
+            catch { }
+        }
+
+        private void QueueAcceptedResult(PubgPlusResult result)
+        {
+            if (result == null || IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed && string.Equals(result.GameId, CurrentId, StringComparison.OrdinalIgnoreCase)) AcceptResult(result);
+                }));
+            }
+            catch { }
         }
 
         private void AcceptResult(PubgPlusResult result)
         {
             ResultReceived?.Invoke(result);
+            lock (_responseSync)
+            {
+                _basicResult = null;
+                _masteryResults.Clear();
+                _acceptPending = false;
+            }
             _index++;
             if (_index >= _gameIds.Count)
             {

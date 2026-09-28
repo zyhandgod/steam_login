@@ -26,9 +26,11 @@ internal static class Program
         CheckStatus("Permanently banned", "永久封禁");
         CheckStatus("PermanentBan", "永久封禁");
 
+        CheckPubgPlusResponses();
+        CheckPubgPlusRequests();
         CheckSteamPopupPreferences();
 
-        Console.WriteLine("Smoke tests passed: import 8/8, status 5/5, Steam popup preferences 7/7");
+        Console.WriteLine("Smoke tests passed: import 8/8, status 5/5, PUBG.PLUS responses 6/6, requests 5/5, Steam popup preferences 7/7");
         return 0;
     }
 
@@ -49,6 +51,51 @@ internal static class Program
     {
         var actual = BanStatusNormalizer.Normalize(raw);
         if (actual != expected) throw new Exception("Status mismatch: " + raw + " => " + actual);
+    }
+
+    private static void CheckPubgPlusResponses()
+    {
+        var parser = new PubgPlusResponseParser();
+        const string basic = "{\"id\":\"account.abc123\",\"attributes\":{\"name\":\"Mooizz\",\"banType\":\"PermanentBan\"},\"matches\":[]}";
+        var basicResult = parser.ParseBasic(basic, "Mooizz");
+        if (basicResult == null || basicResult.AccountId != "account.abc123" || basicResult.GameId != "Mooizz" || basicResult.Status != "永久封禁")
+            throw new Exception("PUBG.PLUS basic response parse failed.");
+
+        const string mastery = "{\"id\":\"account.abc123\",\"attributes\":{\"tier\":1,\"level\":55,\"totalMatchesPlayed\":1485}}";
+        var masteryResult = parser.ParseSurvivalMastery(mastery, "account.abc123");
+        if (masteryResult == null || masteryResult.AccountId != "account.abc123" || !masteryResult.HasLevel || masteryResult.Level != 55 || masteryResult.Tier != 1)
+            throw new Exception("PUBG.PLUS survival mastery response parse failed.");
+
+        const string wrappedBasic = "{\"data\":{\"id\":\"account.xyz789\",\"attributes\":{\"name\":\"PlayerTwo\",\"banType\":\"Innocent\"}}}";
+        var wrappedResult = parser.ParseBasic(wrappedBasic, "PlayerTwo");
+        if (wrappedResult == null || wrappedResult.Status != "正常" || wrappedResult.AccountId != "account.xyz789")
+            throw new Exception("PUBG.PLUS wrapped basic response parse failed.");
+
+        if (parser.ParseBasic(basic, "DifferentPlayer") != null)
+            throw new Exception("PUBG.PLUS mismatched basic response was accepted.");
+
+        if (parser.ParseSurvivalMastery("{\"attributes\":{\"tier\":8,\"level\":-1}}", "account.abc123") != null)
+            throw new Exception("PUBG.PLUS invalid mastery response was accepted.");
+
+        const string legacy = "{\"code\":0,\"player\":{\"name\":\"LegacyPlayer\",\"shardId\":\"steam\",\"ban\":\"TemporaryBan\",\"level\":112,\"tier\":2}}";
+        var legacyResult = parser.Parse(legacy, "LegacyPlayer");
+        if (legacyResult == null || legacyResult.Status != "临时封禁" || !legacyResult.HasLevel || legacyResult.Level != 112 || legacyResult.Tier != 2)
+            throw new Exception("PUBG.PLUS legacy response compatibility failed.");
+    }
+
+    private static void CheckPubgPlusRequests()
+    {
+        string accountId;
+        if (PubgPlusRequestMatcher.Classify("https://apiv1.pubg.plus/steam/player/basic?player_id=Mooizz&ts=1&sign=x", "Mooizz", out accountId) != PubgPlusRequestKind.Basic)
+            throw new Exception("PUBG.PLUS basic request was not detected.");
+        if (PubgPlusRequestMatcher.Classify("https://apiv1.pubg.plus/steam/player/survival_mastery?acc_id=account.abc123&ts=1&sign=x", "Mooizz", out accountId) != PubgPlusRequestKind.SurvivalMastery || accountId != "account.abc123")
+            throw new Exception("PUBG.PLUS mastery request was not detected.");
+        if (PubgPlusRequestMatcher.Classify("https://apiv1.pubg.plus/player/info?player_id=LegacyPlayer", "LegacyPlayer", out accountId) != PubgPlusRequestKind.Legacy)
+            throw new Exception("PUBG.PLUS legacy request was not detected.");
+        if (PubgPlusRequestMatcher.Classify("https://evil.example/steam/player/basic?player_id=Mooizz", "Mooizz", out accountId) != PubgPlusRequestKind.None)
+            throw new Exception("Untrusted PUBG.PLUS response host was accepted.");
+        if (PubgPlusRequestMatcher.Classify("https://apiv1.pubg.plus/steam/player/basic?player_id=Other", "Mooizz", out accountId) != PubgPlusRequestKind.None)
+            throw new Exception("Mismatched PUBG.PLUS request was accepted.");
     }
 
     private static void CheckSteamPopupPreferences()

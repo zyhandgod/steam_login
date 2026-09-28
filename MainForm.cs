@@ -598,8 +598,11 @@ namespace SteamLoginLite
                     {
                         account.Status = result.Status;
                         account.RawStatus = result.RawStatus;
-                        account.Level = result.Level;
-                        account.Tier = result.Tier > 0 ? (int?)result.Tier : null;
+                        if (result.HasLevel)
+                        {
+                            account.Level = result.Level;
+                            account.Tier = result.Tier > 0 ? (int?)result.Tier : null;
+                        }
                         account.LastQueryAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
                     }
                     SaveData();
