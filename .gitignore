@@ -10,3 +10,6 @@ release/
 design-preview/
 docs/screenshots/
 .DS_Store
+node_modules/
+dist/
+.vite/

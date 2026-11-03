@@ -1,40 +1,31 @@
 name: release-windows
-
 on:
   push:
-    tags:
-      - "v*"
-
+    tags: ['v*']
 permissions:
   contents: write
-
 jobs:
   release:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Restore
-        run: |
-          dotnet restore
-          dotnet restore tests/ParserSmoke/ParserSmoke.csproj
-      - name: Test import and status mapping
-        run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj --no-restore
-      - name: Build Windows app
-        run: dotnet build -c Release --no-restore
-      - name: Create portable package
-        shell: pwsh
-        run: |
-          $package = "SteamLoginLite-${{ github.ref_name }}"
-          New-Item -ItemType Directory -Force -Path "release/$package" | Out-Null
-          Copy-Item "bin/Release/net48/*" "release/$package/" -Recurse -Force
-          Copy-Item "使用说明.txt" "release/$package/" -Force
-          Compress-Archive -Path "release/$package" -DestinationPath "release/$package-win.zip" -Force
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:preferences
+      - run: npm run test:query
+      - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
+      - run: npm run pack:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: softprops/action-gh-release@v2
         with:
           name: Steam Login Lite ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
-          files: release/SteamLoginLite-${{ github.ref_name }}-win.zip
+          files: release/SteamLoginLite-*-win-x64.zip

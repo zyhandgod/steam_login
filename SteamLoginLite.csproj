@@ -25,6 +25,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="tests/**/*.cs" />
+    <Compile Remove="helper/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets/tier1.png" LogicalName="SteamLoginLite.Assets.tier1.png" />

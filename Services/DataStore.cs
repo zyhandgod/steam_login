@@ -12,11 +12,13 @@ namespace SteamLoginLite.Services
     public sealed class DataStore
     {
         private readonly string _directory;
+        private readonly string _legacyApplicationDirectory;
         private readonly string _path;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
 
-        public DataStore()
+        public DataStore(string legacyApplicationDirectory = null)
         {
+            _legacyApplicationDirectory = legacyApplicationDirectory;
             _directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SteamLoginLite");
             _path = Path.Combine(_directory, "accounts.json");
         }
@@ -77,7 +79,7 @@ namespace SteamLoginLite.Services
             try
             {
                 var candidates = new List<string>();
-                var baseDirectory = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var baseDirectory = (_legacyApplicationDirectory ?? AppDomain.CurrentDomain.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 AddLegacyCandidate(baseDirectory, candidates);
 
                 var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

@@ -11,15 +11,21 @@ namespace SteamLoginLite.Services
             if (!disableNews && !disableFriends) return true;
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
 
+            return ApplyLoginPreferences(path, "UserLocalConfigStore", disableNews, disableFriends, null);
+        }
+
+        // The same hierarchy is used by Steam's local and roaming configuration.
+        public static bool ApplyLoginPreferences(string path, string root, bool disableNews, bool disableFriends, bool? openLibrary)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
             var bytes = File.ReadAllBytes(path);
             var hasUtf8Bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
             var utf8 = new UTF8Encoding(false, true);
             var original = utf8.GetString(bytes, hasUtf8Bom ? 3 : 0, bytes.Length - (hasUtf8Bom ? 3 : 0));
-            var updated = original;
-            if (disableNews)
-                updated = EnsureValue(updated, new[] { "UserLocalConfigStore", "system", "news" }, "NotifyAvailableGames", "0");
-            if (disableFriends)
-                updated = EnsureValue(updated, new[] { "UserLocalConfigStore", "friends" }, "SignIntoFriends", "0");
+            var updated = EnsureValue(original, new[] { root, "system", "news" }, "NotifyAvailableGames", disableNews ? "0" : "1");
+            updated = EnsureValue(updated, new[] { root, "friends" }, "SignIntoFriends", disableFriends ? "0" : "1");
+            if (openLibrary.HasValue)
+                updated = EnsureValue(updated, new[] { root, "Software", "Valve", "Steam" }, "SteamDefaultDialog", openLibrary.Value ? "#app_games" : "#store");
             if (string.Equals(original, updated, StringComparison.Ordinal)) return true;
 
             var temp = path + ".steam-login-lite.tmp";
@@ -27,7 +33,10 @@ namespace SteamLoginLite.Services
             try
             {
                 File.WriteAllText(temp, updated, new UTF8Encoding(hasUtf8Bom));
-                File.Replace(temp, path, backup, true);
+                if (!File.Exists(backup)) File.Copy(path, backup, false);
+                if (!Convert.ToBase64String(File.ReadAllBytes(path)).Equals(Convert.ToBase64String(bytes), StringComparison.Ordinal))
+                    throw new IOException("Steam 配置正在变化，将稍后重试。");
+                File.Replace(temp, path, null, true);
                 return true;
             }
             finally

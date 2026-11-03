@@ -14,6 +14,10 @@ namespace SteamLoginLite.Services
 {
     public sealed class SteamService
     {
+        public Task PostLoginCompletion { get; private set; } = Task.CompletedTask;
+        public event Action<string, string> PostLoginStatus;
+        private void Report(string status, string message) { PostLoginStatus?.Invoke(status, message); }
+
         private const uint WmClose = 0x0010;
 
         public static string FindSteamPath()
@@ -101,12 +105,11 @@ namespace SteamLoginLite.Services
                 WorkingDirectory = Path.GetDirectoryName(steamPath),
                 UseShellExecute = false
             });
-            _ = RunPostLoginActionsAsync(steamPath, username, settings, token);
+            PostLoginCompletion = RunPostLoginActionsAsync(steamPath, username, settings, token);
         }
 
         private static PreferenceApplyState TryApplyLoginPreferences(string steamPath, string username, AppSettings settings, bool requireStableFile)
         {
-            if (!settings.CloseRecommendations && !settings.CloseFriendsList) return PreferenceApplyState.Applied;
             try
             {
                 var steamDirectory = Path.GetDirectoryName(steamPath);
@@ -118,9 +121,12 @@ namespace SteamLoginLite.Services
                 if (!File.Exists(localConfig)) return PreferenceApplyState.Pending;
                 if (requireStableFile && DateTime.UtcNow - File.GetLastWriteTimeUtc(localConfig) < TimeSpan.FromSeconds(2))
                     return PreferenceApplyState.Pending;
-                return SteamVdfConfig.ApplyPopupPreferences(localConfig, settings.CloseRecommendations, settings.CloseFriendsList)
-                    ? PreferenceApplyState.Applied
-                    : PreferenceApplyState.Pending;
+                if (!SteamVdfConfig.ApplyLoginPreferences(localConfig, "UserLocalConfigStore", settings.CloseRecommendations, settings.CloseFriendsList, settings.OpenLibrary))
+                    return PreferenceApplyState.Pending;
+                var shared = Path.Combine(steamDirectory, "userdata", accountId.ToString(), "7", "remote", "sharedconfig.vdf");
+                if (File.Exists(shared) && !SteamVdfConfig.ApplyLoginPreferences(shared, "UserRoamingConfigStore", settings.CloseRecommendations, settings.CloseFriendsList, settings.OpenLibrary))
+                    return PreferenceApplyState.Pending;
+                return PreferenceApplyState.Applied;
             }
             catch (InvalidDataException ex)
             {
@@ -188,31 +194,72 @@ namespace SteamLoginLite.Services
                 throw new InvalidOperationException("Steam 未能完全退出，请手动关闭 Steam 后重试。");
         }
 
-        private static async Task RunPostLoginActionsAsync(string steamPath, string username, AppSettings settings, CancellationToken token)
+        private static bool IsTargetSessionReady(string steamPath, string username)
+        {
+            if (!string.Equals(FindMostRecentAccountName(steamPath), username, StringComparison.OrdinalIgnoreCase)) return false;
+            var steamId = FindSteamIdForAccount(Path.Combine(Path.GetDirectoryName(steamPath), "config", "loginusers.vdf"), username);
+            if (!steamId.HasValue) return false;
+            try
+            {
+                using (var active = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam\ActiveProcess"))
+                {
+                    var value = active?.GetValue("ActiveUser");
+                    // Steam keeps remembered users before authentication; ActiveUser is the logged-in session.
+                    return value != null && unchecked((uint)Convert.ToInt64(value)) == (uint)(steamId.Value & uint.MaxValue);
+                }
+            }
+            catch { return false; }
+        }
+
+        private async Task RunPostLoginActionsAsync(string steamPath, string username, AppSettings settings, CancellationToken token)
         {
             try
             {
+                Report("waiting", "Steam 已启动，正在等待账号登录和配置就绪；请先完成 Steam 验证。");
                 await Task.Delay(Math.Max(2, settings.StartupDelaySeconds) * 1000, token);
-                var deadline = DateTime.UtcNow.AddSeconds(35);
-                var libraryOpened = false;
-                var preferenceRetriesEnabled = settings.CloseRecommendations || settings.CloseFriendsList;
+                var deadline = DateTime.UtcNow.AddSeconds(180);
+                DateTime? readyAt = null;
+                var nextLibraryAttempt = DateTime.MinValue;
+                var libraryAttempts = 0;
                 while (DateTime.UtcNow < deadline && !token.IsCancellationRequested)
                 {
                     CloseMatchingSteamWindows(settings);
-                    if (preferenceRetriesEnabled)
+                    // Guard against applying another user's configuration or opening the library before login.
+                    if (IsTargetSessionReady(steamPath, username))
                     {
                         var state = TryApplyLoginPreferences(steamPath, username, settings, true);
-                        if (state == PreferenceApplyState.Failed) preferenceRetriesEnabled = false;
-                    }
-                    if (settings.OpenLibrary && !libraryOpened)
-                    {
-                        try { Process.Start(new ProcessStartInfo("steam://open/library") { UseShellExecute = true }); libraryOpened = true; }
-                        catch { }
+                        if (state == PreferenceApplyState.Failed)
+                        {
+                            Report("failed", "Steam 配置无法修改，请查看 steam-service.log，确认目录权限和配置格式后重试。");
+                            return;
+                        }
+                        if (state == PreferenceApplyState.Applied)
+                        {
+                            if (!readyAt.HasValue) { readyAt = DateTime.UtcNow; Report("applying", "已写入登录偏好，正在处理 Steam 窗口…"); }
+                            if (settings.OpenLibrary && libraryAttempts < 3 && DateTime.UtcNow >= nextLibraryAttempt)
+                            {
+                                try
+                                {
+                                    Process.Start(new ProcessStartInfo { FileName = steamPath, Arguments = "steam://open/library", WorkingDirectory = Path.GetDirectoryName(steamPath), UseShellExecute = false });
+                                    libraryAttempts++; nextLibraryAttempt = DateTime.UtcNow.AddSeconds(5);
+                                }
+                                catch (Exception ex) { LogPreferenceWarning(ex); }
+                            }
+                            // Watch config changes through Steam's initial cloud/config refresh.
+                            if (DateTime.UtcNow - readyAt.Value >= TimeSpan.FromSeconds(20))
+                            {
+                                Report(settings.OpenLibrary && libraryAttempts == 0 ? "failed" : "completed",
+                                    settings.OpenLibrary && libraryAttempts == 0 ? "偏好已保存，但无法打开游戏库，请检查 Steam 路径。" : "登录偏好已保存，Steam 窗口处理已结束。");
+                                return;
+                            }
+                        }
                     }
                     await Task.Delay(1000, token);
                 }
+                Report("timeout", "等待 Steam 登录超时。请完成登录后重新切换；已有账号和查询数据不会受影响。");
             }
-            catch { }
+            catch (OperationCanceledException) { Report("canceled", "登录后处理已停止。"); }
+            catch (Exception ex) { LogPreferenceWarning(ex); Report("failed", "登录后处理失败，请查看 steam-service.log。"); }
         }
 
         private static void LogPreferenceWarning(Exception exception)
@@ -253,8 +300,8 @@ namespace SteamLoginLite.Services
                 if (!processName.Equals("steam", StringComparison.OrdinalIgnoreCase) && !processName.Equals("steamwebhelper", StringComparison.OrdinalIgnoreCase)) return true;
                 var title = GetTitle(handle);
                 if (title.Length == 0) return true;
-                var closeRecommendation = settings.CloseRecommendations && ContainsAny(title, "Steam 新闻", "Steam News", "特别优惠", "Special Offers", "What's New", "推荐");
-                var closeFriends = settings.CloseFriendsList && ContainsAny(title, "好友列表", "Friends List", "Friends & Chat", "好友与聊天");
+                var closeRecommendation = settings.CloseRecommendations && ContainsAny(title, "Steam 新闻", "Steam News", "特别优惠", "Special Offers", "What's New", "推荐", "更新消息", "更新新闻", "Update News");
+                var closeFriends = settings.CloseFriendsList && ContainsAny(title, "好友列表", "Friends List", "Friends & Chat", "好友与聊天", "Steam 好友", "Steam Friends", "Friends", "好友");
                 if (closeRecommendation || closeFriends) PostMessage(handle, WmClose, IntPtr.Zero, IntPtr.Zero);
                 return true;
             }, IntPtr.Zero);

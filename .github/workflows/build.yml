@@ -1,23 +1,29 @@
 name: build-windows
-
 on:
   workflow_dispatch:
   push:
     branches: [main]
-
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet restore
-      - run: dotnet restore tests/ParserSmoke/ParserSmoke.csproj
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:preferences
+      - run: npm run test:query
       - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
-      - run: dotnet build -c Release --no-restore
+      - run: npm run pack:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - uses: actions/upload-artifact@v4
         with:
           name: SteamLoginLite-win-x64
-          path: bin/Release/net48/**
+          path: release/SteamLoginLite-*-win-x64.zip
