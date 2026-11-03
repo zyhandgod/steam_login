@@ -8,7 +8,8 @@ bridge.events.on("status", (state) => {
   steamStatus = state;
   send("app:steam-status", state);
 });
-const preview = process.platform !== "win32";
+const preview = process.platform !== "win32" || (!app.isPackaged && process.env.STEAM_PREVIEW === "1");
+const development = !app.isPackaged && process.env.STEAM_DEV === "1";
 const empty = () => ({
   Accounts: [],
   Settings: {
@@ -83,9 +84,8 @@ async function request(command, payload = {}) {
         send("app:update", data);
       },
       (state) => send("query:state", state),
-      (summary) => {
+      () => {
         job = null;
-        send("query:state", { finished: true, ...summary });
       },
       data.Settings.QueryIntervalMilliseconds,
     );
@@ -135,7 +135,7 @@ else {
       minWidth: 1060,
       minHeight: 700,
       backgroundColor: "#f4f6fa",
-      title: "Steam Login Lite",
+      title: development ? "Steam Login Lite · 开发版" : "Steam Login Lite",
       icon: path.join(__dirname, "../Assets/SteamSwitcher.png"),
       webPreferences: {
         preload: path.join(__dirname, "preload.cjs"),
@@ -146,7 +146,16 @@ else {
     });
     main.setMenuBarVisibility(false);
     main.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    main.webContents.on("will-navigate", (event) => event.preventDefault());
+    main.webContents.on("will-navigate", (event, url) => {
+      // Vite reloads JSX changes through window.location.reload(). Keep that
+      // same-page navigation available only for the local development entry.
+      if (development && new URL(url).href === "http://127.0.0.1:5173/") return;
+      event.preventDefault();
+    });
+    if (development) main.webContents.on("page-title-updated", (event) => {
+      event.preventDefault();
+      main.setTitle("Steam Login Lite · 开发版");
+    });
     main.on("closed", () => {
       if (job && !job.win.isDestroyed()) job.win.close();
       app.quit();
@@ -175,7 +184,7 @@ else {
       if (job && event.sender === job.win.webContents)
         event.sender.send("query:state", job.state);
     });
-    if (!app.isPackaged && process.env.STEAM_DEV === "1")
+    if (development)
       main.loadURL("http://127.0.0.1:5173");
     else main.loadFile(path.join(__dirname, "../dist/index.html"));
   });

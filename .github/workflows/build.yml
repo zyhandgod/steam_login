@@ -18,6 +18,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run test:preferences
+      - run: npm run test:session
       - run: npm run test:query
       - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
       - run: npm run pack:win

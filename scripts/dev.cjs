@@ -26,7 +26,7 @@ function launch() {
     .get("http://127.0.0.1:5173", (res) => {
       res.resume();
       if (res.statusCode !== 200) return retry();
-      electron = spawn(require("electron"), ["."], {
+      electron = spawn(process.env.STEAM_ELECTRON_PATH || require("electron"), ["."], {
         stdio: "inherit",
         env: { ...process.env, STEAM_DEV: "1" },
       });

@@ -1,6 +1,7 @@
 const { BrowserWindow, WebContentsView, session } = require("electron");
 const path = require("node:path");
 const { classify, parse, same } = require("./query-parser.cjs");
+const { autofillScript } = require("./query-autofill.cjs");
 const PAGE = "https://pubg.plus/zh-CN/player";
 function allowed(url) {
   try {
@@ -43,11 +44,16 @@ class QueryJob {
     this.win.on("resize", () => this.resize());
     this.win.on("closed", () => {
       this.disposePage();
-      this.onClose({
+      const summary = {
         completed: this.completed,
         skipped: this.skipped,
         total: accounts.length,
+      };
+      this.emit(`已保存 ${this.completed} 个账号，跳过 ${this.skipped} 个。`, {
+        ...summary,
+        finished: true,
       });
+      this.onClose(summary);
     });
     this.next();
   }
@@ -109,9 +115,6 @@ class QueryJob {
     this.basic = null;
     this.mastery = new Map();
     if (this.index >= this.accounts.length) {
-      this.emit(`已保存 ${this.completed} 个账号，跳过 ${this.skipped} 个。`, {
-        finished: true,
-      });
       this.win.close();
       return;
     }
@@ -152,24 +155,19 @@ class QueryJob {
       if (valid() && main && code !== -3)
         this.emit("查询网站加载失败，请检查网络后重试，或跳过当前账号。");
     });
+    let automationStarted = false;
     wc.on("did-finish-load", async () => {
-      if (!valid() || !allowed(wc.getURL())) return;
-      const script = `(() => { try {localStorage.setItem('pubgSelectedPlatform','steam')} catch {};
-        const expected=${JSON.stringify(expected)};
-        function fill(){const input=document.querySelector('.search-input input') || [...document.querySelectorAll('input')].find(i=>/玩家|昵称|player|nickname/i.test(i.placeholder));
-          if(!input||input.disabled||input.readOnly)return false;
-          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,expected);
-          input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));return input.value===expected;}
-        if(fill())return true;
-        return new Promise(resolve=>{const observer=new MutationObserver(()=>{if(fill()){observer.disconnect();clearTimeout(timer);resolve(true)}});
-          const timer=setTimeout(()=>{observer.disconnect();resolve(false)},30000);observer.observe(document.documentElement,{childList:true,subtree:true});});})()`;
+      if (!valid() || !allowed(wc.getURL()) || automationStarted) return;
+      automationStarted = true;
       try {
-        this.emit("正在等待查询输入框加载…");
-        const filled = await wc.executeJavaScript(script);
-        if (valid() && !this.saving)
+        this.emit("正在自动填写并提交查询；如出现验证码，请手动完成。", { autoSubmitting: true });
+        const outcome = await wc.executeJavaScript(autofillScript(expected));
+        if (valid() && !this.saving && !this.basic)
           this.emit(
-            filled
-              ? "查询标识 已填写，请在网页中点击“查询”。如有验证码，请手动完成；结果将自动保存。"
+            outcome === "submitted"
+              ? "已自动点击查询，正在等待结果。如出现验证码，请手动完成；结果将自动保存并继续下一个。"
+              : outcome === "filled"
+              ? "查询标识已填写，但未能自动提交，请在网页点击查询；如有验证码，请手动完成。"
               : "未找到可填写的输入框，请在网页手动输入上方查询标识 后点击查询，或重试。",
           );
       } catch {
@@ -254,7 +252,7 @@ class QueryJob {
     }
     this.later(() => {
       if (valid() && !this.saving)
-        this.emit("暂未获取结果。请确认已点击查询并完成验证码；可重试或跳过。");
+        this.emit("暂未获取结果。如有验证码，请手动完成；也可手动点击查询、重试或跳过。");
     }, 90000);
   }
   async accept(result, generation) {

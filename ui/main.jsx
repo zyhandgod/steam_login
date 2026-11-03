@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Provider as MotionProvider } from "rc-motion";
 import {
   Alert,
   App as AntApp,
@@ -27,8 +28,6 @@ import zhCN from "antd/locale/zh_CN";
 import {
   AppstoreOutlined,
   CheckCircleFilled,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
   DesktopOutlined,
   CloudSyncOutlined,
   DeleteOutlined,
@@ -38,7 +37,6 @@ import {
   ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
-  TeamOutlined,
 } from "@ant-design/icons";
 import "./style.css";
 import appLogo from "../Assets/SteamSwitcher.png";
@@ -61,7 +59,7 @@ async function api(command, payload) {
   if (!r.ok) throw new Error(r.error);
   return r.value;
 }
-function Manager() {
+function Manager({ motionMode, setMotionMode }) {
   const { message, modal } = AntApp.useApp();
   const [data, setData] = useState({
     Accounts: [],
@@ -76,12 +74,14 @@ function Manager() {
     [status, setStatus] = useState("全部账号");
   const [selected, setSelected] = useState([]),
     [page, setPage] = useState(1),
+    [pageSize, setPageSize] = useState(10),
     [query, setQuery] = useState(null);
+  const tableRegion = useRef(null);
+  const [tableHeight, setTableHeight] = useState(200);
   const [edit, setEdit] = useState(null),
     [importing, setImporting] = useState(false),
     [importText, setImportText] = useState(""),
     [settings, setSettings] = useState(false);
-  const [steamStatus, setSteamStatus] = useState(null);
   const [form] = Form.useForm(),
     [settingsForm] = Form.useForm();
   async function run(task) {
@@ -100,7 +100,6 @@ function Manager() {
     try {
       const e = await api("environment");
       setEnv(e);
-      if (e.steamStatus) setSteamStatus(e.steamStatus);
       const r = await api("load");
       setData(r.data);
     } catch (e) {
@@ -112,7 +111,6 @@ function Manager() {
   useEffect(() => {
     load();
     const off = window.steam?.onUpdate(setData);
-    const offSteam = window.steam?.onSteamStatus(setSteamStatus);
     const offQuery = window.steam?.onQuery((state) => {
       setQuery(state);
       if (state.finished)
@@ -123,7 +121,6 @@ function Manager() {
     return () => {
       off?.();
       offQuery?.();
-      offSteam?.();
     };
   }, []);
   const accounts = data.Accounts;
@@ -145,6 +142,23 @@ function Manager() {
     setSelected((ids) => ids.filter((id) => accounts.some((a) => a.Id === id)));
   }, [accounts]);
   const current = accounts.find((a) => a.Id === data.CurrentAccountId);
+  useLayoutEffect(() => {
+    const region = tableRegion.current;
+    if (!region) return;
+    const header = region.querySelector('.ant-table-header');
+    const pagination = region.querySelector('.ant-pagination');
+    function measure() {
+      const style = pagination && getComputedStyle(pagination);
+      const paginationHeight = pagination ? pagination.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom) : 64;
+      setTableHeight(Math.max(60, Math.floor(region.clientHeight - (header?.offsetHeight || 58) - paginationHeight - 2)));
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(region);
+    if (header) observer.observe(header);
+    if (pagination) observer.observe(pagination);
+    measure();
+    return () => observer.disconnect();
+  }, [pageSize, filtered.length]);
   const allFiltered =
     filtered.length > 0 && filtered.every((a) => selected.includes(a.Id));
   const activeQuery = query && !query.finished;
@@ -218,7 +232,7 @@ function Manager() {
             </Text>
             <div className="subline">
               {a.Id === data.CurrentAccountId ? (
-                <span className="current-dot">最近切换</span>
+                <span className="current-account-badge"><CheckCircleFilled /> 当前账号</span>
               ) : (
                 a.Note || "Steam 账号"
               )}
@@ -376,7 +390,7 @@ function Manager() {
             <br />
             关闭窗口即退出工具
           </p>
-          <div className="version">本地版 / 版本 {env.version || "2.1.3"}</div>
+          <div className="version">本地版 / 版本 {env.version || "2.1.4"}</div>
         </div>
       </aside>
       <main>
@@ -391,12 +405,13 @@ function Manager() {
         </header>
         <div className="content">
           <section className="page-heading">
-            <div>
-              <div className="eyebrow">集中管理，轻松切换</div>
-              <h1>
-                账号管理<span className="count-pill">{accounts.length}</span>
-              </h1>
-              <p>管理你的 Steam 账号，轻松切换，随时掌握游戏状态。</p>
+            <div className="summary-stats" aria-label="账号概览">
+              <span className="stat">全部 <b>{accounts.length}</b></span>
+              <span className="stat summary-healthy">正常 <b>{accounts.filter((a) => a.Status === "正常").length}</b></span>
+              <span className="stat summary-pending">待查询 <b>{accounts.filter((a) => !a.LastQueryAt).length}</b></span>
+              <span className="stat current-summary" title={current?.Username || "尚未切换"}>
+                <DesktopOutlined /> 当前 <b>{current?.Username || "尚未切换"}</b>
+              </span>
             </div>
             <Space>
               <Button
@@ -446,74 +461,6 @@ function Manager() {
               message="账号数据加载失败"
               description={fatal}
               action={<Button onClick={load}>重试</Button>}
-            />
-          )}
-          <section className="stats">
-            <div className="stat">
-              <div className="stat-icon blue">
-                <TeamOutlined />
-              </div>
-              <div>
-                <span>全部账号</span>
-                <strong>
-                  {accounts.length}
-                  <small>个账号</small>
-                </strong>
-              </div>
-            </div>
-            <div className="stat">
-              <div className="stat-icon green">
-                <CheckCircleOutlined />
-              </div>
-              <div>
-                <span>状态正常</span>
-                <strong>
-                  {accounts.filter((a) => a.Status === "正常").length}
-                  <small>个账号</small>
-                </strong>
-              </div>
-            </div>
-            <div className="stat">
-              <div className="stat-icon amber">
-                <ClockCircleOutlined />
-              </div>
-              <div>
-                <span>等待查询</span>
-                <strong>
-                  {accounts.filter((a) => !a.LastQueryAt).length}
-                  <small>个账号</small>
-                </strong>
-              </div>
-            </div>
-            <div className="stat current-stat">
-              <div className="stat-icon violet">
-                <DesktopOutlined />
-              </div>
-              <div>
-                <span>最近切换账号</span>
-                <strong className="current-name">
-                  {current?.Username || "尚未切换"}
-                </strong>
-              </div>
-            </div>
-          </section>
-          {steamStatus && (
-            <Alert
-              className="notice"
-              showIcon
-              type={
-                steamStatus.status === "completed"
-                  ? "success"
-                  : ["failed", "timeout"].includes(steamStatus.status)
-                    ? "warning"
-                    : "info"
-              }
-              message={steamStatus.message}
-              description={
-                ["waiting", "applying"].includes(steamStatus.status)
-                  ? "处理完成前请保持工具打开；关闭工具会停止尚未完成的窗口操作。"
-                  : undefined
-              }
             />
           )}
           {activeQuery && (
@@ -611,10 +558,12 @@ function Manager() {
                 </>
               )}
             </div>
+            <div className="table-region" ref={tableRegion}>
             <Table
               columns={columns}
               dataSource={filtered}
               rowKey="Id"
+              rowClassName={(account) => account.Id === data.CurrentAccountId ? "current-account-row" : ""}
               loading={loading || busy}
               rowSelection={{
                 selectedRowKeys: selected,
@@ -626,12 +575,17 @@ function Manager() {
                   Table.SELECTION_NONE,
                 ],
               }}
-              scroll={{ x: 1100 }}
+              scroll={{ x: 1100, y: tableHeight }}
               pagination={{
                 current: page,
-                onChange: setPage,
-                pageSize: 10,
-                showSizeChanger: false,
+                onChange: (nextPage, nextSize) => {
+                  setPage(nextSize !== pageSize ? 1 : nextPage);
+                  setPageSize(nextSize);
+                },
+                pageSize,
+                pageSizeOptions: [10, 20, 50, 100],
+                showSizeChanger: true,
+                showQuickJumper: true,
                 showTotal: (total) => `共 ${total} 个账号`,
                 hideOnSinglePage: false,
               }}
@@ -657,6 +611,7 @@ function Manager() {
                 ),
               }}
             />
+            </div>
           </section>
           <footer>
             <span>
@@ -795,6 +750,21 @@ function Manager() {
           </Button>
         }
       >
+        <section className="motion-settings">
+          <h3>界面动效</h3>
+          <p className="drawer-description">立即生效，自动保存在此电脑。</p>
+          <Segmented
+            block
+            aria-label="界面动效"
+            value={motionMode}
+            onChange={setMotionMode}
+            options={[
+              { label: "流畅动效", value: "full" },
+              { label: "跟随系统", value: "system" },
+              { label: "减少动效", value: "reduced" },
+            ]}
+          />
+        </section>
         <Form layout="vertical" form={settingsForm}>
           <h3>Steam 启动</h3>
           <Form.Item
@@ -859,11 +829,42 @@ function Manager() {
     </div>
   );
 }
-createRoot(document.getElementById("root")).render(
+function Application() {
+  const [motionMode, updateMotionMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem("steam-login-motion");
+      return ["full", "system", "reduced"].includes(saved) ? saved : "full";
+    } catch {
+      return "full";
+    }
+  });
+  const [systemReduced, setSystemReduced] = useState(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const changed = () => setSystemReduced(media.matches);
+    media.addEventListener("change", changed);
+    changed();
+    return () => media.removeEventListener("change", changed);
+  }, []);
+  const reduced = motionMode === "reduced" || (motionMode === "system" && systemReduced);
+  // One policy for custom styles and Ant Design, independent of the OS default.
+  document.documentElement.dataset.motion = reduced ? "reduced" : "full";
+  function setMotionMode(value) {
+    updateMotionMode(value);
+    try { localStorage.setItem("steam-login-motion", value); } catch { /* Session preference still applies. */ }
+  }
+  return (
   <ConfigProvider
     locale={zhCN}
     theme={{
       token: {
+        // Keep the provider tree stable when changing motion preferences.
+        motion: true,
+        motionDurationFast: reduced ? "0s" : "0.15s",
+        motionDurationMid: reduced ? "0s" : "0.24s",
+        motionDurationSlow: reduced ? "0s" : "0.32s",
         colorPrimary: "#3867ed",
         colorText: "#25324b",
         colorTextSecondary: "#8792a5",
@@ -885,8 +886,12 @@ createRoot(document.getElementById("root")).render(
       },
     }}
   >
-    <AntApp>
-      <Manager />
-    </AntApp>
+    <MotionProvider motion={!reduced}>
+      <AntApp>
+        <Manager motionMode={motionMode} setMotionMode={setMotionMode} />
+      </AntApp>
+    </MotionProvider>
   </ConfigProvider>,
-);
+  );
+}
+createRoot(document.getElementById("root")).render(<Application />);

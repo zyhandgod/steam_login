@@ -108,15 +108,15 @@ namespace SteamLoginLite.Services
             PostLoginCompletion = RunPostLoginActionsAsync(steamPath, username, settings, token);
         }
 
-        private static PreferenceApplyState TryApplyLoginPreferences(string steamPath, string username, AppSettings settings, bool requireStableFile)
+        private static PreferenceApplyState TryApplyLoginPreferences(string steamPath, string username, AppSettings settings, bool requireStableFile, uint? authenticatedAccountId = null)
         {
             try
             {
                 var steamDirectory = Path.GetDirectoryName(steamPath);
                 if (string.IsNullOrWhiteSpace(steamDirectory)) return PreferenceApplyState.Pending;
                 var steamId = FindSteamIdForAccount(Path.Combine(steamDirectory, "config", "loginusers.vdf"), username);
-                if (!steamId.HasValue) return PreferenceApplyState.Pending;
-                var accountId = (uint)(steamId.Value & uint.MaxValue);
+                if (!steamId.HasValue && !authenticatedAccountId.HasValue) return PreferenceApplyState.Pending;
+                var accountId = authenticatedAccountId ?? (uint)(steamId.Value & uint.MaxValue);
                 var localConfig = Path.Combine(steamDirectory, "userdata", accountId.ToString(), "config", "localconfig.vdf");
                 if (!File.Exists(localConfig)) return PreferenceApplyState.Pending;
                 if (requireStableFile && DateTime.UtcNow - File.GetLastWriteTimeUtc(localConfig) < TimeSpan.FromSeconds(2))
@@ -196,19 +196,46 @@ namespace SteamLoginLite.Services
 
         private static bool IsTargetSessionReady(string steamPath, string username)
         {
-            if (!string.Equals(FindMostRecentAccountName(steamPath), username, StringComparison.OrdinalIgnoreCase)) return false;
             var steamId = FindSteamIdForAccount(Path.Combine(Path.GetDirectoryName(steamPath), "config", "loginusers.vdf"), username);
-            if (!steamId.HasValue) return false;
             try
             {
                 using (var active = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam\ActiveProcess"))
+                using (var steam = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam"))
                 {
                     var value = active?.GetValue("ActiveUser");
-                    // Steam keeps remembered users before authentication; ActiveUser is the logged-in session.
-                    return value != null && unchecked((uint)Convert.ToInt64(value)) == (uint)(steamId.Value & uint.MaxValue);
+                    var pid = Convert.ToInt32(active?.GetValue("pid") ?? 0);
+                    if (pid <= 0 || !Process.GetProcessById(pid).ProcessName.Equals("steam", StringComparison.OrdinalIgnoreCase)) return false;
+                    return MatchesTargetSession(steamId, value == null ? 0 : unchecked((uint)Convert.ToInt64(value)),
+                        username, Convert.ToString(steam?.GetValue("AutoLoginUser")));
                 }
             }
             catch { return false; }
+        }
+
+        internal static bool MatchesTargetSession(ulong? expectedSteamId, uint activeUser, string username, string autoLoginUser)
+        {
+            if (activeUser == 0) return false;
+            // MostRecent is absent in newer clients. A remembered account is
+            // matched directly to ActiveUser; a first login may not be in VDF yet.
+            if (expectedSteamId.HasValue) return (uint)(expectedSteamId.Value & uint.MaxValue) == activeUser;
+            return !string.IsNullOrWhiteSpace(username) && string.Equals(username, autoLoginUser, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static uint ActiveAccountId()
+        {
+            using (var active = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam\ActiveProcess"))
+                return unchecked((uint)Convert.ToInt64(active.GetValue("ActiveUser")));
+        }
+
+        private static bool IsSteamSessionReady(string steamPath)
+        {
+            try {
+                using (var active = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam\ActiveProcess")) {
+                    if (Convert.ToInt64(active?.GetValue("ActiveUser") ?? 0) == 0) return false;
+                    var process = Process.GetProcessById(Convert.ToInt32(active?.GetValue("pid") ?? 0));
+                    return string.Equals(process.MainModule.FileName, steamPath, StringComparison.OrdinalIgnoreCase);
+                }
+            } catch { return false; }
         }
 
         private async Task RunPostLoginActionsAsync(string steamPath, string username, AppSettings settings, CancellationToken token)
@@ -223,19 +250,18 @@ namespace SteamLoginLite.Services
                 var libraryAttempts = 0;
                 while (DateTime.UtcNow < deadline && !token.IsCancellationRequested)
                 {
+                    // Window preferences apply to this Steam client, independently
+                    // of whether a newly logged-in account has reached loginusers.vdf.
                     CloseMatchingSteamWindows(settings);
-                    // Guard against applying another user's configuration or opening the library before login.
-                    if (IsTargetSessionReady(steamPath, username))
+                    if (IsSteamSessionReady(steamPath))
                     {
-                        var state = TryApplyLoginPreferences(steamPath, username, settings, true);
-                        if (state == PreferenceApplyState.Failed)
-                        {
-                            Report("failed", "Steam 配置无法修改，请查看 steam-service.log，确认目录权限和配置格式后重试。");
-                            return;
-                        }
-                        if (state == PreferenceApplyState.Applied)
-                        {
-                            if (!readyAt.HasValue) { readyAt = DateTime.UtcNow; Report("applying", "已写入登录偏好，正在处理 Steam 窗口…"); }
+                        if (!readyAt.HasValue) { readyAt = DateTime.UtcNow; Report("applying", "Steam 活动会话已就绪，正在处理窗口…"); }
+                        // Only account-specific file writes require verified identity.
+                        var state = IsTargetSessionReady(steamPath, username)
+                            ? TryApplyLoginPreferences(steamPath, username, settings, true, ActiveAccountId())
+                            : PreferenceApplyState.Pending;
+                        // A new account's config may arrive late. It must not block
+                        // opening the library or closing the initial popup windows.
                             if (settings.OpenLibrary && libraryAttempts < 3 && DateTime.UtcNow >= nextLibraryAttempt)
                             {
                                 try
@@ -246,13 +272,15 @@ namespace SteamLoginLite.Services
                                 catch (Exception ex) { LogPreferenceWarning(ex); }
                             }
                             // Watch config changes through Steam's initial cloud/config refresh.
-                            if (DateTime.UtcNow - readyAt.Value >= TimeSpan.FromSeconds(20))
+                            if (DateTime.UtcNow - readyAt.Value >= TimeSpan.FromSeconds(30))
                             {
-                                Report(settings.OpenLibrary && libraryAttempts == 0 ? "failed" : "completed",
-                                    settings.OpenLibrary && libraryAttempts == 0 ? "偏好已保存，但无法打开游戏库，请检查 Steam 路径。" : "登录偏好已保存，Steam 窗口处理已结束。");
+                                var successful = !settings.OpenLibrary || libraryAttempts > 0;
+                                Report(successful ? "completed" : "failed", successful
+                                    ? (state == PreferenceApplyState.Applied ? "登录偏好已保存，Steam 窗口处理已结束。" : "Steam 窗口处理已结束；账号配置尚未就绪，未修改其他账号配置。")
+                                    : "已尝试处理 Steam 窗口，但部分配置或游戏库操作未完成，请查看 steam-service.log。");
+                                if (!successful) LogPreferenceWarning(new InvalidOperationException("登录后处理：配置状态=" + state + "，游戏库启动次数=" + libraryAttempts));
                                 return;
                             }
-                        }
                     }
                     await Task.Delay(1000, token);
                 }
@@ -300,11 +328,17 @@ namespace SteamLoginLite.Services
                 if (!processName.Equals("steam", StringComparison.OrdinalIgnoreCase) && !processName.Equals("steamwebhelper", StringComparison.OrdinalIgnoreCase)) return true;
                 var title = GetTitle(handle);
                 if (title.Length == 0) return true;
-                var closeRecommendation = settings.CloseRecommendations && ContainsAny(title, "Steam 新闻", "Steam News", "特别优惠", "Special Offers", "What's New", "推荐", "更新消息", "更新新闻", "Update News");
-                var closeFriends = settings.CloseFriendsList && ContainsAny(title, "好友列表", "Friends List", "Friends & Chat", "好友与聊天", "Steam 好友", "Steam Friends", "Friends", "好友");
-                if (closeRecommendation || closeFriends) PostMessage(handle, WmClose, IntPtr.Zero, IntPtr.Zero);
+                if (ShouldCloseSteamWindow(title, settings)) PostMessage(handle, WmClose, IntPtr.Zero, IntPtr.Zero);
                 return true;
             }, IntPtr.Zero);
+        }
+
+        internal static bool ShouldCloseSteamWindow(string title, AppSettings settings)
+        {
+            if (string.IsNullOrWhiteSpace(title)) return false;
+            var news = settings.CloseRecommendations && ContainsAny(title, "特惠", "特賣", "Steam 新闻", "Steam - 新闻", "Steam News", "Steam - News", "特别优惠", "Special Offers", "What's New", "推荐", "更新消息", "更新新闻", "Update News");
+            var friends = settings.CloseFriendsList && ContainsAny(title, "好友列表", "Friends List", "Friends & Chat", "好友与聊天", "Steam 好友", "Steam Friends", "Friends", "好友");
+            return news || friends;
         }
 
         private static bool ContainsAny(string value, params string[] candidates)

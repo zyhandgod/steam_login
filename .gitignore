@@ -13,3 +13,4 @@ docs/screenshots/
 node_modules/
 dist/
 .vite/
+*.log

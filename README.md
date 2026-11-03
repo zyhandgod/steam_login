@@ -1,4 +1,4 @@
-# Steam Login Lite 2.1.3
+# Steam Login Lite 2.1.4
 
 使用 Electron + React + Ant Design 的 Windows Steam 账号管理与切换工具。ZIP 绿色版完整解压后双击 `SteamLoginLite.exe`，无需安装工具、Node.js 或 WebView2。请保留整个解压目录。
 
@@ -18,10 +18,11 @@
 
 ## 功能
 
+- 偏好设置 → 界面动效：默认“流畅动效”，可选择“跟随系统”或“减少动效”，切换立即生效并在本机保存。Windows 关闭系统动画时，仍可使用流畅动效。
 - 账号添加、编辑、备注、搜索、状态筛选、等级排序与批量导入。
 - 当前页选择、跨页全选筛选结果、一键取消选择、批量查询与删除。
 - Steam 账号切换及登录后打开游戏库、关闭好友列表和推荐/新闻窗口。
-- 自带 Chromium 查询 PUBG.PLUS，自动填写查询标识；用户点击查询并完成验证码，结果回填并保存。
+- 自带 Chromium 查询 PUBG.PLUS，自动填写查询标识并点击查询，保存结果后继续下一个账号；遇到验证码仍需手动完成，提交异常可重试或跳过。
 - 批量查询支持进度、重试、跳过和结束。按账号记录及昵称绑定结果，避免串号。
 - 仅封禁状态返回、等级在 8 秒内未返回时，保留原等级。
 - 关闭主窗口即退出，无托盘常驻。未完成的查询及登录后窗口操作会停止，Steam 继续运行。
@@ -58,9 +59,11 @@ npm run dev
 npm run pack:win
 ```
 
-输出：`release/SteamLoginLite-2.1.3-win-x64.zip`。构建包不包含更新模块、发布后台或签名凭证。原 WinForms 源码仍保留供参考；`dotnet build SteamLoginLite.csproj` 构建的是旧界面。
+输出：`release/SteamLoginLite-2.1.4-win-x64.zip`。构建包不包含更新模块、发布后台或签名凭证。原 WinForms 源码仍保留供参考；`dotnet build SteamLoginLite.csproj` 构建的是旧界面。
 
 ## 验证
+
+UI smoke 在所有平台使用隔离示例数据，并强制模拟系统减少动画，验证应用动效覆盖、模式切换和重启后的偏好保存，不访问真实账号。
 
 ```sh
 npm test

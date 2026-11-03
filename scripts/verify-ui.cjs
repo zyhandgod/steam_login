@@ -1,5 +1,7 @@
-// Run with: electron scripts/verify-ui.cjs (macOS preview only).
+// Run with: electron scripts/verify-ui.cjs (isolated preview on every OS).
+process.env.STEAM_PREVIEW = "1";
 const { app, BrowserWindow } = require("electron");
+app.commandLine.appendSwitch("force-prefers-reduced-motion", "reduce");
 app.setPath(
   "userData",
   require("node:fs").mkdtempSync(
@@ -9,10 +11,6 @@ app.setPath(
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const fs = require("node:fs");
-if (process.platform === "win32")
-  throw new Error(
-    "UI smoke uses isolated Mac preview data; do not run against Windows accounts.",
-  );
 require("../desktop/main.cjs");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(wc, expression) {
@@ -26,11 +24,19 @@ app.whenReady().then(async () => {
   try {
     const win = BrowserWindow.getAllWindows()[0],
       wc = win.webContents;
+    const execute = wc.executeJavaScript.bind(wc);
+    wc.executeJavaScript = async (expression) => {
+      try { return await execute(expression); }
+      catch (error) { throw new Error(`Renderer check failed: ${expression}`, { cause: error }); }
+    };
     const errors = [];
     wc.on("console-message", (event) => {
       if (event.level === "error") errors.push(event.message);
     });
     await until(wc, "document.body.innerText.includes('重置示例数据')");
+    assert.equal(await wc.executeJavaScript("matchMedia('(prefers-reduced-motion: reduce)').matches"), true);
+    assert.equal(await wc.executeJavaScript("document.documentElement.dataset.motion"), "full");
+    assert.notEqual(await wc.executeJavaScript("getComputedStyle(document.querySelector('.table-card')).animationName"), "none");
     assert.equal(
       await wc.executeJavaScript(
         "document.querySelector('.brand-mark img')?.alt",
@@ -41,6 +47,9 @@ app.whenReady().then(async () => {
       wc,
       "document.querySelectorAll('tr.ant-table-row').length===10",
     );
+    assert.equal(await wc.executeJavaScript("document.querySelectorAll('tr.current-account-row').length"), 1);
+    assert.equal(await wc.executeJavaScript("document.querySelector('.current-account-badge').textContent.trim()"), "当前账号");
+    assert.notEqual(await wc.executeJavaScript("getComputedStyle(document.querySelector('tr.current-account-row > td')).backgroundColor"), "rgb(255, 255, 255)");
     await wc.executeJavaScript(
       "document.querySelector('.selection-bar input').click()",
     );
@@ -89,6 +98,27 @@ app.whenReady().then(async () => {
     await wc.executeJavaScript(
       "document.querySelector('.ant-pagination-item-1').click()",
     );
+    async function choosePageSize(size) {
+      await wc.executeJavaScript("document.querySelector('.ant-pagination-options-size-changer .ant-select-selector').dispatchEvent(new MouseEvent('mousedown', {bubbles:true}))");
+      await until(wc, "!!document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option')");
+      await wc.executeJavaScript(`Array.from(document.querySelectorAll('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option')).find(e=>e.textContent.trim()=== '${size} 条/页').click()`);
+      await until(wc, `document.querySelectorAll('tr.ant-table-row').length === ${size}`);
+    }
+    await choosePageSize(20);
+    assert.equal(await wc.executeJavaScript("document.querySelector('.ant-pagination-item-1').classList.contains('ant-pagination-item-active')"), true);
+    await choosePageSize(10);
+    for (const [width, height] of [[1060, 700], [1360, 880]]) {
+      win.setSize(width, height);
+      await sleep(250);
+      const layout = await wc.executeJavaScript(`(() => {
+        const body = document.querySelector('.ant-table-body');
+        const pagination = document.querySelector('.ant-pagination').getBoundingClientRect();
+        return { pageFits: document.documentElement.scrollHeight <= innerHeight,
+          paginationVisible: pagination.bottom <= innerHeight && pagination.top >= 0,
+          internalScroll: body.scrollHeight > body.clientHeight && body.clientHeight > 0 };
+      })()`);
+      assert.deepEqual(layout, { pageFits:true, paginationVisible:true, internalScroll:true });
+    }
     win.show();
     win.focus();
     await sleep(1500);
@@ -130,6 +160,23 @@ app.whenReady().then(async () => {
       ),
       false,
     );
+    async function selectMotion(label, expected) {
+      await wc.executeJavaScript(`Array.from(document.querySelectorAll('.motion-settings label')).find(e => e.textContent === ${JSON.stringify(label)}).click()`);
+      await until(wc, `document.documentElement.dataset.motion === ${JSON.stringify(expected)}`);
+      await until(wc, "!!document.querySelector('.ant-drawer-open .ant-switch') && !!document.querySelector('.motion-settings label')");
+    }
+    await selectMotion("减少动效", "reduced");
+    assert.equal(await wc.executeJavaScript("getComputedStyle(document.querySelector('.stat')).transitionDuration"), "0s");
+    assert.equal(await wc.executeJavaScript("getComputedStyle(document.querySelector('.ant-drawer .ant-switch')).transitionDuration"), "0s");
+    await selectMotion("跟随系统", "reduced");
+    await selectMotion("流畅动效", "full");
+    await until(wc, "getComputedStyle(document.querySelector('.ant-drawer-open .ant-switch')).transitionDuration !== '0s'");
+    await selectMotion("减少动效", "reduced");
+    wc.reload();
+    await until(wc, "document.querySelectorAll('tr.ant-table-row').length===10 && document.documentElement.dataset.motion==='reduced'");
+    await wc.executeJavaScript("[...document.querySelectorAll('.nav-item')].find(b=>b.textContent.includes('偏好设置')).click()");
+    await until(wc, "!!document.querySelector('.motion-settings label')");
+    await selectMotion("流畅动效", "full");
     await sleep(500);
     fs.writeFileSync(
       path.join(__dirname, "../release/settings-preview.png"),
@@ -140,7 +187,7 @@ app.whenReady().then(async () => {
       [],
     );
     console.log(
-      "PASS: preview boot, 28 demo records, pagination, cross-page select-all, clear selection, account drawer, no update controls, 3 Steam switches, screenshots.",
+      "PASS: preview, selection, pagination, drawers, settings, full motion with reduced OS setting, reduced/system modes, Ant Design transitions, preference persistence, screenshots.",
     );
     app.exit(0);
   } catch (error) {
