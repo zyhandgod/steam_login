@@ -328,7 +328,17 @@ main {
   line-height: 14px;
   margin-top: 0;
 }
+.account-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.account-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .current-account-badge {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 4px;

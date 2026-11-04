@@ -230,13 +230,14 @@ function Manager({ motionMode, setMotionMode }) {
             <Text title={a.Username} copyable={{ text: a.Username }}>
               <strong className="account-name">{a.Username}</strong>
             </Text>
-            <div className="subline" title={a.Note || "Steam 账号"}>
-              {a.Id === data.CurrentAccountId ? (
-                <span className="current-account-badge"><CheckCircleFilled /> 当前账号</span>
-              ) : (
-                a.Note || "Steam 账号"
-              )}
-            </div>
+            {(a.Id === data.CurrentAccountId || a.Note?.trim()) && (
+              <div className="subline account-meta">
+                {a.Id === data.CurrentAccountId && (
+                  <span className="current-account-badge"><CheckCircleFilled /> 当前账号</span>
+                )}
+                {a.Note?.trim() && <span className="account-note" title={a.Note}>{a.Note}</span>}
+              </div>
+            )}
           </div>
         </div>
       ),
