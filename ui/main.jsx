@@ -74,7 +74,7 @@ function Manager({ motionMode, setMotionMode }) {
     [status, setStatus] = useState("全部账号");
   const [selected, setSelected] = useState([]),
     [page, setPage] = useState(1),
-    [pageSize, setPageSize] = useState(10),
+    [pageSize, setPageSize] = useState(20),
     [query, setQuery] = useState(null);
   const tableRegion = useRef(null);
   const [tableHeight, setTableHeight] = useState(200);
@@ -227,10 +227,10 @@ function Manager({ motionMode, setMotionMode }) {
             {a.Username.slice(0, 2).toUpperCase()}
           </div>
           <div>
-            <Text strong copyable={{ text: a.Username }}>
-              {a.Username}
+            <Text title={a.Username} copyable={{ text: a.Username }}>
+              <strong className="account-name">{a.Username}</strong>
             </Text>
-            <div className="subline">
+            <div className="subline" title={a.Note || "Steam 账号"}>
               {a.Id === data.CurrentAccountId ? (
                 <span className="current-account-badge"><CheckCircleFilled /> 当前账号</span>
               ) : (
@@ -879,7 +879,7 @@ function Application() {
           headerBg: "#f9fafc",
           headerColor: "#7b879b",
           rowHoverBg: "#f5f8ff",
-          cellPaddingBlock: 18,
+          cellPaddingBlock: 4,
         },
         Button: { primaryShadow: "0 4px 10px rgba(56,103,237,.16)" },
         Segmented: { trackBg: "#f2f4f8", itemSelectedBg: "#fff" },

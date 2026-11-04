@@ -269,18 +269,18 @@ main {
 }
 .account-cell {
   display: flex;
-  gap: 11px;
+  gap: 9px;
   align-items: center;
 }
 .avatar {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   font-size: 11px;
   font-weight: 700;
   border: 1px solid #e0e7f8;
-  border-radius: 10px;
+  border-radius: 8px;
   flex-shrink: 0;
   background: #edf2fc;
   color: #6e84b0;
@@ -300,27 +300,46 @@ main {
   color: #b89a72;
   border-color: #f1e7d9;
 }
+.account-cell > div:last-child {
+  min-width: 0;
+  flex: 1;
+}
 .account-cell .ant-typography {
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  line-height: 18px;
+}
+.account-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.account-cell .ant-typography-copy {
+  flex-shrink: 0;
 }
 .subline {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   color: #68778d;
-  line-height: 1.5;
-  margin-top: 4px;
+  line-height: 14px;
+  margin-top: 0;
 }
 .current-account-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 1px 7px;
+  padding: 0 6px;
   border: 1px solid #b6e1cc;
   border-radius: 5px;
   background: #daf2e5;
   color: #196846;
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.6;
+  line-height: 14px;
 }
 .ant-table-wrapper .ant-table-tbody > tr.current-account-row > td {
   background: #edf8f1;
@@ -352,8 +371,8 @@ main {
   font-size: 14px;
 }
 .level-cell img {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
 }
 .time {
@@ -363,7 +382,7 @@ main {
 }
 .ant-table-wrapper .ant-table {
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.45;
 }
 .ant-table-wrapper .ant-table-thead > tr > th {
   font-size: 13px;
@@ -400,8 +419,8 @@ main {
 .ant-table-wrapper .ant-tag {
   font-size: 12px;
   border-radius: 5px;
-  padding: 2px 7px;
-  line-height: 19px;
+  padding: 0 7px;
+  line-height: 20px;
 }
 .ant-table-cell .ant-btn-link {
   font-size: 14px;

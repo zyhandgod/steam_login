@@ -45,7 +45,7 @@ app.whenReady().then(async () => {
     );
     await until(
       wc,
-      "document.querySelectorAll('tr.ant-table-row').length===10",
+      "document.querySelectorAll('tr.ant-table-row').length===20",
     );
     assert.equal(await wc.executeJavaScript("document.querySelectorAll('tr.current-account-row').length"), 1);
     assert.equal(await wc.executeJavaScript("document.querySelector('.current-account-badge').textContent.trim()"), "当前账号");
@@ -68,7 +68,7 @@ app.whenReady().then(async () => {
       await wc.executeJavaScript(
         "document.querySelectorAll('tr.ant-table-row input:checked').length",
       ),
-      10,
+      8,
     );
     await wc.executeJavaScript(
       `var input=document.querySelector('.search input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'PUBG_Player_28');input.dispatchEvent(new Event('input',{bubbles:true}));`,
@@ -86,7 +86,7 @@ app.whenReady().then(async () => {
     );
     await until(
       wc,
-      "document.querySelectorAll('tr.ant-table-row').length===10",
+      "document.querySelectorAll('tr.ant-table-row').length===20",
     );
     await wc.executeJavaScript(
       "[...document.querySelectorAll('button')].find(b=>b.textContent.includes('取消选择')).click()",
@@ -104,9 +104,9 @@ app.whenReady().then(async () => {
       await wc.executeJavaScript(`Array.from(document.querySelectorAll('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option')).find(e=>e.textContent.trim()=== '${size} 条/页').click()`);
       await until(wc, `document.querySelectorAll('tr.ant-table-row').length === ${size}`);
     }
-    await choosePageSize(20);
-    assert.equal(await wc.executeJavaScript("document.querySelector('.ant-pagination-item-1').classList.contains('ant-pagination-item-active')"), true);
     await choosePageSize(10);
+    assert.equal(await wc.executeJavaScript("document.querySelector('.ant-pagination-item-1').classList.contains('ant-pagination-item-active')"), true);
+    await choosePageSize(20);
     for (const [width, height] of [[1060, 700], [1360, 880]]) {
       win.setSize(width, height);
       await sleep(250);
@@ -119,6 +119,26 @@ app.whenReady().then(async () => {
       })()`);
       assert.deepEqual(layout, { pageFits:true, paginationVisible:true, internalScroll:true });
     }
+    const density = await wc.executeJavaScript(`(() => {
+      const rows = [...document.querySelectorAll('tr.ant-table-row')];
+      const body = document.querySelector('.ant-table-body').getBoundingClientRect();
+      return { maxHeight: Math.max(...rows.map(row => row.getBoundingClientRect().height)),
+        visibleRows: rows.filter(row => row.getBoundingClientRect().bottom <= body.bottom).length };
+    })()`);
+    assert.ok(density.maxHeight <= 45, JSON.stringify(density));
+    assert.ok(density.visibleRows >= 9, JSON.stringify(density));
+    const longName = await wc.executeJavaScript(`(() => {
+      const name = document.querySelector('.account-name');
+      const original = name.textContent;
+      name.textContent = 'very_long_steam_account_'.repeat(10);
+      const button = name.parentElement.querySelector('button').getBoundingClientRect();
+      const cell = name.closest('td').getBoundingClientRect();
+      const fits = button.left >= cell.left && button.right <= cell.right;
+      name.textContent = original;
+      return fits;
+    })()`);
+    assert.equal(longName, true);
+    console.log('Compact table:', density);
     win.show();
     win.focus();
     await sleep(1500);
@@ -173,7 +193,7 @@ app.whenReady().then(async () => {
     await until(wc, "getComputedStyle(document.querySelector('.ant-drawer-open .ant-switch')).transitionDuration !== '0s'");
     await selectMotion("减少动效", "reduced");
     wc.reload();
-    await until(wc, "document.querySelectorAll('tr.ant-table-row').length===10 && document.documentElement.dataset.motion==='reduced'");
+    await until(wc, "document.querySelectorAll('tr.ant-table-row').length===20 && document.documentElement.dataset.motion==='reduced'");
     await wc.executeJavaScript("[...document.querySelectorAll('.nav-item')].find(b=>b.textContent.includes('偏好设置')).click()");
     await until(wc, "!!document.querySelector('.motion-settings label')");
     await selectMotion("流畅动效", "full");

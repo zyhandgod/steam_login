@@ -1,4 +1,4 @@
-# Steam Login Lite 2.1.4
+# Steam Login Lite 2.1.5
 
 使用 Electron + React + Ant Design 的 Windows Steam 账号管理与切换工具。ZIP 绿色版完整解压后双击 `SteamLoginLite.exe`，无需安装工具、Node.js 或 WebView2。请保留整个解压目录。
 
@@ -17,6 +17,8 @@
 保存账号、DPAPI 加密密码、备注、查询结果及设置。兼容旧版本数据。首次运行仍会在旧版目录、桌面和下载目录查找旧 `data/accounts.json`，只在固定数据目录不存在时迁移，不覆盖已有数据。更换电脑或 Windows 用户后，密码需要重新填写；建议换版前备份数据目录。保存通过临时文件原子替换，保留 `.bak`；读取损坏数据时保留 `.broken-时间戳` 备份，不以空数据覆盖。
 
 ## 功能
+
+- 紧凑账号列表，默认每页 20 条；备注过长时省略显示，悬停可查看完整内容。
 
 - 偏好设置 → 界面动效：默认“流畅动效”，可选择“跟随系统”或“减少动效”，切换立即生效并在本机保存。Windows 关闭系统动画时，仍可使用流畅动效。
 - 账号添加、编辑、备注、搜索、状态筛选、等级排序与批量导入。
@@ -59,7 +61,7 @@ npm run dev
 npm run pack:win
 ```
 
-输出：`release/SteamLoginLite-2.1.4-win-x64.zip`。构建包不包含更新模块、发布后台或签名凭证。原 WinForms 源码仍保留供参考；`dotnet build SteamLoginLite.csproj` 构建的是旧界面。
+输出：`release/SteamLoginLite-2.1.5-win-x64.zip`。构建包不包含更新模块、发布后台或签名凭证。原 WinForms 源码仍保留供参考；`dotnet build SteamLoginLite.csproj` 构建的是旧界面。
 
 ## 验证
 
