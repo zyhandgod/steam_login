@@ -48,6 +48,8 @@ app.whenReady().then(async () => {
       "document.querySelectorAll('tr.ant-table-row').length===20",
     );
     assert.equal(await wc.executeJavaScript("document.querySelectorAll('tr.current-account-row').length"), 1);
+    assert.equal(await wc.executeJavaScript("document.querySelectorAll('.local-account-mark').length"), 3);
+    assert.equal(await wc.executeJavaScript("document.querySelector('.local-account-mark').textContent"), "本机");
     assert.equal(await wc.executeJavaScript("!!document.querySelector('tr[data-row-key=\"demo-1\"] .account-note')"), false);
     assert.equal(await wc.executeJavaScript("document.querySelector('tr[data-row-key=\"demo-3\"] .account-note').textContent"), "常用账号");
     assert.equal(await wc.executeJavaScript("document.querySelector('tr.current-account-row .account-note').textContent"), "常用账号");

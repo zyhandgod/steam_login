@@ -45,6 +45,64 @@ namespace SteamLoginLite.Services
             }
         }
 
+        internal static string ReadValue(string content, string[] blockPath, string key)
+        {
+            var block = ResolveBlock(content, blockPath);
+            MemberSpan member;
+            var status = FindDirectMember(content, block, key, out member);
+            if (status == FindMemberStatus.Invalid || (status == FindMemberStatus.Found && member.IsBlock))
+                throw new InvalidDataException("Steam 登录记录结构无效。");
+            if (status == FindMemberStatus.NotFound) return "";
+            var index = member.ValueStart;
+            string value; int start, length;
+            if (!TryReadQuoted(content, ref index, content.Length, out value, out start, out length))
+                throw new InvalidDataException("Steam 登录记录结构无效。");
+            return value;
+        }
+
+        internal static string[] ChildBlocks(string content, params string[] blockPath)
+        {
+            var block = ResolveBlock(content, blockPath);
+            var names = new System.Collections.Generic.List<string>();
+            var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var index = block.OpenBrace + 1;
+            while (index < block.CloseBrace)
+            {
+                SkipTrivia(content, ref index, block.CloseBrace);
+                if (index >= block.CloseBrace) break;
+                string name; int start, length;
+                if (!TryReadQuoted(content, ref index, block.CloseBrace, out name, out start, out length) || !seen.Add(name))
+                    throw new InvalidDataException("Steam 登录记录结构无效或有重复账号。");
+                SkipTrivia(content, ref index, block.CloseBrace);
+                if (index < block.CloseBrace && content[index] == '{')
+                {
+                    var end = FindMatchingBrace(content, index, block.CloseBrace);
+                    if (end < 0) throw new InvalidDataException("Steam 登录记录结构无效。");
+                    names.Add(name); index = end + 1;
+                }
+                else
+                {
+                    string ignored;
+                    if (!TryReadQuoted(content, ref index, block.CloseBrace, out ignored, out start, out length))
+                        throw new InvalidDataException("Steam 登录记录结构无效。");
+                }
+            }
+            return names.ToArray();
+        }
+
+        private static BlockSpan ResolveBlock(string content, string[] path)
+        {
+            var block = new BlockSpan(-1, content.Length);
+            foreach (var key in path)
+            {
+                MemberSpan member;
+                if (FindDirectMember(content, block, key, out member) != FindMemberStatus.Found || !member.IsBlock)
+                    throw new InvalidDataException("Steam 登录记录缺少有效节点。");
+                block = new BlockSpan(member.OpenBrace, member.CloseBrace);
+            }
+            return block;
+        }
+
         internal static string EnsureValue(string content, string[] blockPath, string key, string value)
         {
             if (content == null) throw new ArgumentNullException(nameof(content));

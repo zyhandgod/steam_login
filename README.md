@@ -1,4 +1,4 @@
-# Steam Login Lite 2.1.7
+# Steam Login Lite 2.1.8
 
 使用 Electron + React + Ant Design 的 Windows Steam 账号管理与切换工具。ZIP 绿色版完整解压后双击 `SteamLoginLite.exe`，无需安装工具、Node.js 或 WebView2。请保留整个解压目录。
 
@@ -15,6 +15,14 @@
 ```
 
 保存账号、DPAPI 加密密码、备注、查询结果及设置。兼容旧版本数据。首次运行仍会在旧版目录、桌面和下载目录查找旧 `data/accounts.json`，只在固定数据目录不存在时迁移，不覆盖已有数据。更换电脑或 Windows 用户后，密码需要重新填写；建议换版前备份数据目录。保存通过临时文件原子替换，保留 `.bak`；读取损坏数据时保留 `.broken-时间戳` 备份，不以空数据覆盖。
+
+## 本机 Steam 账号同步
+
+启动或点击右上角刷新时，自动读取所选 Steam 目录的 `config/loginusers.vdf`，补充本机登录过的账号。“本机”标记表示存在本机记录；“当前”绿色标记依据实际活动账号及 Steam 进程识别，不以最近登录记录代替在线状态。外部切换或退出 Steam 后，可刷新重新识别。
+
+已有账号按账号名合并，保留密码、游戏昵称、备注、查询结果和原 ID；批量导入同名本机账号时仅补全缺失的密码、邮箱和游戏昵称，不覆盖已有值；新同步账号备注为空。不提取或导出 Steam 登录凭证，是否可尝试本机登录只由本机记录标志判断，不保证登录状态仍有效。删除工具记录不会删除 Steam 的记忆，之后同步可能再次加入。
+
+点击登录时，本机已记住且允许自动登录的账号优先使用 Steam 保存的状态；若已是该账号在线则沿用会话。切换其他账号会先退出 Steam，设置目标账号并启动；状态过期或需验证时，请在 Steam 窗口完成。未保留登录状态时使用工具保存的密码，没有密码则提示补充。不会绕过 Steam Guard。将程序或数据移到另一台电脑不会带走 Steam 本机登录状态。
 
 ## 功能
 
@@ -61,7 +69,7 @@ npm run dev
 npm run pack:win
 ```
 
-输出：`release/SteamLoginLite-2.1.7-win-x64.zip`。构建包不包含更新模块、发布后台或签名凭证。原 WinForms 源码仍保留供参考；`dotnet build SteamLoginLite.csproj` 构建的是旧界面。
+输出：`release/SteamLoginLite-2.1.8-win-x64.zip`。构建包不包含更新模块、发布后台或签名凭证。原 WinForms 源码仍保留供参考；`dotnet build SteamLoginLite.csproj` 构建的是旧界面。
 
 ## 验证
 
@@ -72,6 +80,7 @@ npm test
 npm run test:query
 npm run test:ui
 npm run test:preferences
+npm run test:local
 ```
 
 `test:query` 使用隔离的真实 Chromium 和本地 HTTPS 响应夹具验证昵称填入、结果合并及回填，不提交真实玩家查询。`test:ui` 在 Mac 预览模式验证账号表格、全选与取消、设置开关，并检查更新控件不存在。`test:preferences` 验证配置双向写入与备份。

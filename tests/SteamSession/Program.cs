@@ -32,6 +32,32 @@ class SessionTest
             Check(parsed == steamId, "VDF without MostRecent must resolve the target ID");
             Check(SteamService.MatchesTargetSession(parsed, 123, "target", ""), "MostRecent must not gate post-login actions");
         } finally { File.Delete(file); }
+        var data = new AppData();
+        var existing = new AccountRecord { Username = "PLAYER", Note = "我的备注", GameId = "nickname", EncryptedPassword = "encrypted-fixture", Level = 123, Status = "正常" };
+        data.Accounts.Add(existing);
+        var records = new System.Collections.Generic.List<SteamLocalAccount> {
+            new SteamLocalAccount { Username = "player", SteamId = steamId.ToString(), CanUseSavedLogin = true },
+            new SteamLocalAccount { Username = "second", SteamId = "76561197960266184", CanUseSavedLogin = false }
+        };
+        SteamAccountSync.Merge(data, records, "player");
+        Check(data.Accounts.Count == 2 && data.Accounts[0] == existing, "Case-insensitive sync must not duplicate or replace existing record");
+        Check(existing.Note == "我的备注" && existing.GameId == "nickname" && existing.EncryptedPassword == "encrypted-fixture" && existing.Level == 123 && existing.Status == "正常", "Existing data and credentials preserved");
+        Check(data.CurrentAccountId == existing.Id && existing.IsLocalAccount && existing.CanUseSavedLogin, "Only verified active account marked current");
+        var added = data.Accounts[1];
+        Check(added.Note == "" && added.EncryptedPassword == "" && !added.CanUseSavedLogin, "Imported accounts have empty notes and no extracted credentials");
+        SteamAccountSync.Merge(data, records, "");
+        Check(data.Accounts.Count == 2 && data.CurrentAccountId == "", "Idempotent sync and logged-out state clears current marker");
+        SteamAccountSync.Merge(data, new System.Collections.Generic.List<SteamLocalAccount>(), "player");
+        Check(!existing.IsLocalAccount && !existing.CanUseSavedLogin && data.Accounts.Count == 2 && data.CurrentAccountId == "", "Moving PC loses local flags, preserves account data");
+        var imported = new AccountRecord { Username = "SECOND", EncryptedPassword = "new-encrypted", EncryptedEmailPassword = "email-encrypted", Email = "test@example.com", GameId = "new-nickname", Note = "ignored" };
+        added.IsLocalAccount = true;
+        Check(SteamAccountSync.FillMissingData(added, imported), "Bulk import fills credentials of synced account");
+        Check(added.EncryptedPassword == "new-encrypted" && added.Email == "test@example.com" && added.GameId == "new-nickname" && added.Note == "", "Missing fields filled, note untouched");
+        Check(!SteamAccountSync.FillMissingData(added, new AccountRecord { EncryptedPassword = "other", GameId = "other", Email = "other@example.com" }), "Bulk import does not overwrite populated fields");
+        existing.IsLocalAccount = false;
+        Check(!SteamAccountSync.FillMissingData(existing, imported), "Ordinary duplicate import stays unchanged");
+        var json = new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(data);
+        Check(!json.Contains("IsLocalAccount") && !json.Contains("CanUseSavedLogin"), "Local eligibility never persisted or migrated");
         Console.WriteLine("PASS: no-MostRecent VDF, active-session matching, stale registry, first login, wrong-account rejection.");
     }
 }

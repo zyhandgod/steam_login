@@ -7,6 +7,12 @@ let main, job, data, steamStatus;
 bridge.events.on("status", (state) => {
   steamStatus = state;
   send("app:steam-status", state);
+  if (["authenticated", "completed"].includes(state.status)) {
+    bridge.invoke({ Command: "load" }).then(result => {
+      data = result.data;
+      send("app:update", data);
+    }).catch(() => {});
+  }
 });
 const preview = process.platform !== "win32" || (!app.isPackaged && process.env.STEAM_PREVIEW === "1");
 const development = !app.isPackaged && process.env.STEAM_DEV === "1";
@@ -35,6 +41,9 @@ function mockData() {
     LastLoginAt: i ? 0 : Date.now(),
     LastQueryAt: i % 5 === 2 ? 0 : Date.now() - i * 3600000,
     Note: i % 3 === 0 ? "常用账号" : "",
+    IsLocalAccount: i < 3,
+    CanUseSavedLogin: i < 2,
+    HasPassword: i >= 2,
   }));
   data.CurrentAccountId = "demo-0";
   return data;

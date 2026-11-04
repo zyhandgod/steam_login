@@ -1,6 +1,6 @@
 {
   "name": "steam-login-lite",
-  "version": "2.1.7",
+  "version": "2.1.8",
   "private": true,
   "description": "Steam account manager",
   "author": "Steam Login Lite",
@@ -15,7 +15,8 @@
     "test:query": "electron scripts/verify-query.cjs",
     "test:ui": "electron scripts/verify-ui.cjs",
     "test:preferences": "dotnet run --project tests/SteamPreferences/SteamPreferences.csproj",
-    "test:session": "dotnet run --project tests/SteamSession/SteamSession.csproj"
+    "test:session": "dotnet run --project tests/SteamSession/SteamSession.csproj",
+    "test:local": "dotnet run --project tests/SteamLocalAccounts/SteamLocalAccounts.csproj"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",

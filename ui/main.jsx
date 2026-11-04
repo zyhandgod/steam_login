@@ -68,7 +68,8 @@ function Manager({ motionMode, setMotionMode }) {
   });
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
-    [fatal, setFatal] = useState("");
+    [fatal, setFatal] = useState(""),
+    [steamStatus, setSteamStatus] = useState(null);
   const [env, setEnv] = useState({}),
     [search, setSearch] = useState(""),
     [status, setStatus] = useState("全部账号");
@@ -102,6 +103,7 @@ function Manager({ motionMode, setMotionMode }) {
       setEnv(e);
       const r = await api("load");
       setData(r.data);
+      if (r.extra?.localSyncWarning) message.warning(r.extra.localSyncWarning, 6);
     } catch (e) {
       setFatal(e.message);
     } finally {
@@ -111,6 +113,7 @@ function Manager({ motionMode, setMotionMode }) {
   useEffect(() => {
     load();
     const off = window.steam?.onUpdate(setData);
+    const offSteam = window.steam?.onSteamStatus(setSteamStatus);
     const offQuery = window.steam?.onQuery((state) => {
       setQuery(state);
       if (state.finished)
@@ -121,6 +124,7 @@ function Manager({ motionMode, setMotionMode }) {
     return () => {
       off?.();
       offQuery?.();
+      offSteam?.();
     };
   }, []);
   const accounts = data.Accounts;
@@ -189,10 +193,13 @@ function Manager({ motionMode, setMotionMode }) {
   }
   function login(account) {
     modal.confirm({
-      title: `切换到 ${account.Username}？`,
-      content:
-        "切换会退出当前 Steam 和正在运行的 PUBG，请先保存游戏进度。登录后可能仍需完成 Steam 验证。",
-      okText: "退出并切换",
+      title: data.CurrentAccountId === account.Id ? `继续使用 ${account.Username}？` : `切换到 ${account.Username}？`,
+      content: data.CurrentAccountId === account.Id
+        ? "将尝试沿用该账号当前的 Steam 会话；若本机登录状态已变化，可能需要重新切换并完成验证。"
+        : account.IsLocalAccount && account.CanUseSavedLogin
+        ? "将优先使用本机 Steam 已记住的登录状态。切换其他账号会退出 Steam 和正在运行的 PUBG；登录状态失效时仍需在 Steam 中验证。"
+        : "切换会退出当前 Steam 和正在运行的 PUBG，请先保存游戏进度。请使用已保存密码登录，必要时完成 Steam 验证。",
+      okText: data.CurrentAccountId === account.Id ? "继续使用" : "退出并切换",
       cancelText: "取消",
       onOk: () =>
         run(async () => {
@@ -223,9 +230,12 @@ function Manager({ motionMode, setMotionMode }) {
       sorter: (a, b) => a.Username.localeCompare(b.Username),
       render: (_, a) => (
         <div className="account-cell">
-          <div className={`avatar av-${a.Username.length % 4}`}>
-            {a.Username.slice(0, 2).toUpperCase()}
-          </div>
+          <Tooltip title={a.IsLocalAccount ? (a.CanUseSavedLogin ? "本机记录 · 可尝试使用 Steam 已记住的登录状态" : "本机记录 · 登录状态不可用，需在 Steam 登录或补充密码") : "工具中保存的账号"}>
+            <div className={`avatar av-${a.Username.length % 4}`}>
+              {a.Username.slice(0, 2).toUpperCase()}
+              {a.IsLocalAccount && <span className="local-account-mark" aria-label="本机记录">本机</span>}
+            </div>
+          </Tooltip>
           <div className="account-identity">
             <Text title={a.Username} copyable={{ text: a.Username }}>
               <strong className="account-name">{a.Username}</strong>
@@ -487,6 +497,11 @@ function Manager({ motionMode, setMotionMode }) {
               </Button>
             </div>
           )}
+          {steamStatus && (
+            <Alert className="steam-status-banner" showIcon closable onClose={() => setSteamStatus(null)}
+              type={["failed", "timeout"].includes(steamStatus.status) ? "warning" : steamStatus.status === "completed" ? "success" : "info"}
+              message={steamStatus.message} />
+          )}
           <section className="table-card">
             <div className="table-toolbar">
               <Segmented
@@ -503,7 +518,7 @@ function Manager({ motionMode, setMotionMode }) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
-                <Tooltip title="刷新账号数据">
+                <Tooltip title="刷新并同步本机 Steam 账号">
                   <Button
                     aria-label="刷新账号"
                     icon={<ReloadOutlined />}
@@ -661,7 +676,7 @@ function Manager({ motionMode, setMotionMode }) {
             label="Steam 密码"
             extra={
               edit?.Id
-                ? "留空保留原密码；密码不会回显。"
+                ? (edit?.IsLocalAccount ? "本机账号可留空尝试已记住的登录状态；填写密码后作为备用，原密码不会回显。" : "留空保留原密码；密码不会回显。")
                 : "密码使用当前 Windows 用户加密。"
             }
             rules={[{ required: !edit?.Id, message: "请输入密码" }]}
@@ -709,7 +724,7 @@ function Manager({ motionMode, setMotionMode }) {
             setImporting(false);
             setImportText("");
             message.success(
-              `已导入 ${r.extra.added} 个，跳过重复账号 ${r.extra.skipped} 个`,
+              `已新增 ${r.extra.added} 个，补全本机账号 ${r.extra.updated || 0} 个，跳过重复账号 ${r.extra.skipped} 个`,
             );
           })
         }

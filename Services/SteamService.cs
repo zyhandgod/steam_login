@@ -108,6 +108,39 @@ namespace SteamLoginLite.Services
             PostLoginCompletion = RunPostLoginActionsAsync(steamPath, username, settings, token);
         }
 
+        public async Task LaunchRememberedAsync(string steamPath, string username, AppSettings settings, CancellationToken token)
+        {
+            if (!File.Exists(steamPath)) throw new FileNotFoundException("找不到 Steam，请在设置中选择 steam.exe。", steamPath);
+            if (!IsTargetSessionReady(steamPath, username))
+            {
+                // Validate before stopping the running client; re-read after shutdown.
+                var target = SteamLocalAccounts.Read(steamPath).Find(a => a.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+                if (target == null || !target.CanUseSavedLogin)
+                    throw new InvalidOperationException("本机登录记录不可用，请先在 Steam 登录并勾选记住我，或编辑账号补充密码。");
+                await StopSteamAsync(token);
+                await Task.Delay(1200, token);
+                SteamLocalAccounts.PrepareLogin(steamPath, username);
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Valve\Steam"))
+                    key.SetValue("AutoLoginUser", username, RegistryValueKind.String);
+                TryApplyLoginPreferences(steamPath, username, settings, false);
+                Process.Start(new ProcessStartInfo { FileName = steamPath, WorkingDirectory = Path.GetDirectoryName(steamPath), UseShellExecute = false });
+            }
+            PostLoginCompletion = RunPostLoginActionsAsync(steamPath, username, settings, token);
+        }
+
+        public static string FindActiveAccountName(string steamPath, System.Collections.Generic.List<SteamLocalAccount> accounts)
+        {
+            if (!IsSteamSessionReady(steamPath)) return "";
+            try
+            {
+                var active = ActiveAccountId();
+                foreach (var account in accounts)
+                    if ((uint)(ulong.Parse(account.SteamId) & uint.MaxValue) == active) return account.Username;
+            }
+            catch { }
+            return "";
+        }
+
         private static PreferenceApplyState TryApplyLoginPreferences(string steamPath, string username, AppSettings settings, bool requireStableFile, uint? authenticatedAccountId = null)
         {
             try
@@ -158,15 +191,9 @@ namespace SteamLoginLite.Services
         private static ulong? FindSteamIdForAccount(string vdfPath, string username)
         {
             if (!File.Exists(vdfPath) || string.IsNullOrWhiteSpace(username)) return null;
-            var content = File.ReadAllText(vdfPath, Encoding.UTF8);
-            foreach (Match block in Regex.Matches(content, "\"(?<steamId>\\d+)\"\\s*\\{(?<body>.*?)\\}", RegexOptions.Singleline))
-            {
-                var account = Regex.Match(block.Groups["body"].Value, "\"AccountName\"\\s*\"(?<name>[^\"]+)\"", RegexOptions.IgnoreCase);
-                ulong steamId;
-                if (account.Success && string.Equals(account.Groups["name"].Value, username, StringComparison.OrdinalIgnoreCase) &&
-                    ulong.TryParse(block.Groups["steamId"].Value, out steamId)) return steamId;
-            }
-            return null;
+            var account = SteamLocalAccounts.Parse(File.ReadAllText(vdfPath, new UTF8Encoding(false, true)))
+                .Find(a => a.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+            return account == null ? (ulong?)null : ulong.Parse(account.SteamId);
         }
 
         private static async Task StopSteamAsync(CancellationToken token)
@@ -194,17 +221,17 @@ namespace SteamLoginLite.Services
                 throw new InvalidOperationException("Steam 未能完全退出，请手动关闭 Steam 后重试。");
         }
 
-        private static bool IsTargetSessionReady(string steamPath, string username)
+        internal static bool IsTargetSessionReady(string steamPath, string username)
         {
-            var steamId = FindSteamIdForAccount(Path.Combine(Path.GetDirectoryName(steamPath), "config", "loginusers.vdf"), username);
             try
             {
+                var steamId = FindSteamIdForAccount(Path.Combine(Path.GetDirectoryName(steamPath), "config", "loginusers.vdf"), username);
                 using (var active = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam\ActiveProcess"))
                 using (var steam = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam"))
                 {
                     var value = active?.GetValue("ActiveUser");
                     var pid = Convert.ToInt32(active?.GetValue("pid") ?? 0);
-                    if (pid <= 0 || !Process.GetProcessById(pid).ProcessName.Equals("steam", StringComparison.OrdinalIgnoreCase)) return false;
+                    if (pid <= 0 || !string.Equals(Process.GetProcessById(pid).MainModule.FileName, steamPath, StringComparison.OrdinalIgnoreCase)) return false;
                     return MatchesTargetSession(steamId, value == null ? 0 : unchecked((uint)Convert.ToInt64(value)),
                         username, Convert.ToString(steam?.GetValue("AutoLoginUser")));
                 }
@@ -246,6 +273,7 @@ namespace SteamLoginLite.Services
                 await Task.Delay(Math.Max(2, settings.StartupDelaySeconds) * 1000, token);
                 var deadline = DateTime.UtcNow.AddSeconds(180);
                 DateTime? readyAt = null;
+                var authenticated = false;
                 var nextLibraryAttempt = DateTime.MinValue;
                 var libraryAttempts = 0;
                 while (DateTime.UtcNow < deadline && !token.IsCancellationRequested)
@@ -253,11 +281,13 @@ namespace SteamLoginLite.Services
                     // Window preferences apply to this Steam client, independently
                     // of whether a newly logged-in account has reached loginusers.vdf.
                     CloseMatchingSteamWindows(settings);
-                    if (IsSteamSessionReady(steamPath))
+                    if (IsTargetSessionReady(steamPath, username))
                     {
                         if (!readyAt.HasValue) { readyAt = DateTime.UtcNow; Report("applying", "Steam 活动会话已就绪，正在处理窗口…"); }
                         // Only account-specific file writes require verified identity.
-                        var state = IsTargetSessionReady(steamPath, username)
+                        var targetReady = IsTargetSessionReady(steamPath, username);
+                        if (targetReady && !authenticated) { authenticated = true; Report("authenticated", "已确认目标 Steam 账号在线。"); }
+                        var state = targetReady
                             ? TryApplyLoginPreferences(steamPath, username, settings, true, ActiveAccountId())
                             : PreferenceApplyState.Pending;
                         // A new account's config may arrive late. It must not block

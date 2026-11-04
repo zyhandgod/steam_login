@@ -19,18 +19,26 @@ internal static class Program
         public AppSettings Settings { get; set; }
         public PubgPlusResult Result { get; set; }
     }
+    static void SyncLocalAccounts(AppData data)
+    {
+        data.CurrentAccountId = "";
+        var local = SteamLocalAccounts.Read(data.Settings.SteamPath);
+        SteamAccountSync.Merge(data, local, SteamService.FindActiveAccountName(data.Settings.SteamPath, local));
+    }
+
     static int Main() {
         Console.InputEncoding = new UTF8Encoding(false); Console.OutputEncoding = new UTF8Encoding(false);
         SteamService loginService = null;
         try {
             var r = Json.Deserialize<Request>(Console.ReadLine());
             var store = new DataStore(Environment.GetEnvironmentVariable("STEAM_LOGIN_ROOT")); var data = store.Load(); object extra = null;
+            if (string.IsNullOrWhiteSpace(data.Settings.SteamPath)) data.Settings.SteamPath = SteamService.FindSteamPath();
+            string syncWarning = null;
+            try { SyncLocalAccounts(data); }
+            catch (Exception) { syncWarning = "无法读取本机 Steam 登录记录，已有账号数据已保留；请确认 Steam 路径及登录记录是否可用。"; }
             switch (r.Command) {
                 case "load":
-                    if (string.IsNullOrWhiteSpace(data.Settings.SteamPath)) data.Settings.SteamPath = SteamService.FindSteamPath();
-                    var recent = SteamService.FindMostRecentAccountName(data.Settings.SteamPath);
-                    var current = data.Accounts.FirstOrDefault(a => a.Username.Equals(recent, StringComparison.OrdinalIgnoreCase));
-                    if (current != null) data.CurrentAccountId = current.Id;
+                    extra = new { localSyncWarning = syncWarning };
                     break;
                 case "save-account":
                     var a = r.Account; if (a == null || string.IsNullOrWhiteSpace(a.Username)) throw new Exception("请输入 Steam 账号。");
@@ -45,12 +53,17 @@ internal static class Program
                 case "import":
                     var parsed = ImportParser.Parse(r.Text); var errors = parsed.Where(x => !x.IsValid).Select(x => "第 " + x.LineNumber + " 行：" + x.Error).ToArray();
                     if (errors.Length > 0) throw new Exception(string.Join("\n", errors));
-                    int added = 0, skipped = 0;
+                    int added = 0, updated = 0, skipped = 0;
                     foreach (var row in parsed) {
-                        if (data.Accounts.Any(x => x.Username.Equals(row.Username, StringComparison.OrdinalIgnoreCase))) { skipped++; continue; }
-                        data.Accounts.Add(new AccountRecord { Username = row.Username, EncryptedPassword = DataStore.Encrypt(row.Password), Email = row.Email, EncryptedEmailPassword = DataStore.Encrypt(row.EmailPassword), GameId = row.GameId }); added++;
+                        var incoming = new AccountRecord { Username = row.Username, EncryptedPassword = DataStore.Encrypt(row.Password), Email = row.Email, EncryptedEmailPassword = DataStore.Encrypt(row.EmailPassword), GameId = row.GameId };
+                        var duplicate = data.Accounts.FirstOrDefault(x => x.Username.Equals(row.Username, StringComparison.OrdinalIgnoreCase));
+                        if (duplicate != null) {
+                            if (SteamAccountSync.FillMissingData(duplicate, incoming)) updated++; else skipped++;
+                            continue;
+                        }
+                        data.Accounts.Add(incoming); added++;
                     }
-                    extra = new { added, skipped }; break;
+                    extra = new { added, updated, skipped }; break;
                 case "delete":
                     data.Accounts.RemoveAll(x => (r.Ids ?? new string[0]).Contains(x.Id));
                     if (!data.Accounts.Any(x => x.Id == data.CurrentAccountId)) data.CurrentAccountId = "";
@@ -69,19 +82,26 @@ internal static class Program
                 case "login":
                     var selected = data.Accounts.FirstOrDefault(x => (r.Ids ?? new string[0]).Contains(x.Id));
                     if (selected == null) throw new Exception("账号不存在。");
-                    string password;
-                    try { password = DataStore.Decrypt(selected.EncryptedPassword); } catch { throw new Exception("密码无法解密，请在原 Windows 用户下运行，或编辑账号重新填写密码。"); }
                     loginService = new SteamService();
                     // Status messages are streamed separately from the command reply.
                     loginService.PostLoginStatus += (status, message) => {
                         lock (Json) { Console.WriteLine(Json.Serialize(new { Event = "steam-status", Status = status, Message = message })); Console.Out.Flush(); }
                     };
-                    loginService.LaunchAsync(data.Settings.SteamPath, selected.Username, password, data.Settings, CancellationToken.None).GetAwaiter().GetResult();
-                    selected.LastLoginAt = DateTimeOffset.Now.ToUnixTimeMilliseconds(); data.CurrentAccountId = selected.Id;  break;
+                    if (selected.IsLocalAccount && (selected.CanUseSavedLogin || SteamService.IsTargetSessionReady(data.Settings.SteamPath, selected.Username)))
+                        loginService.LaunchRememberedAsync(data.Settings.SteamPath, selected.Username, data.Settings, CancellationToken.None).GetAwaiter().GetResult();
+                    else {
+                        string password;
+                        try { password = DataStore.Decrypt(selected.EncryptedPassword); } catch { throw new Exception("密码无法解密，请在原 Windows 用户下运行，或编辑账号重新填写密码。"); }
+                        if (string.IsNullOrEmpty(password)) throw new Exception("没有可用的本机登录状态，请编辑账号补充密码，或先在 Steam 中登录并勾选记住我。");
+                        loginService.LaunchAsync(data.Settings.SteamPath, selected.Username, password, data.Settings, CancellationToken.None).GetAwaiter().GetResult();
+                    }
+                    selected.LastLoginAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                    data.CurrentAccountId = SteamService.IsTargetSessionReady(data.Settings.SteamPath, selected.Username) ? selected.Id : "";
+                    break;
                 default: throw new Exception("未知操作。");
             }
             store.Save(data);
-            var accounts = data.Accounts.Select(x => new { x.Id, x.Username, x.Email, x.GameId, x.Level, x.Tier, x.Status, x.RawStatus, x.Note, x.LastLoginAt, x.LastQueryAt });
+            var accounts = data.Accounts.Select(x => new { x.Id, x.Username, x.Email, x.GameId, x.Level, x.Tier, x.Status, x.RawStatus, x.Note, x.LastLoginAt, x.LastQueryAt, x.IsLocalAccount, x.CanUseSavedLogin, x.HasPassword });
             lock (Json) { Console.WriteLine(Json.Serialize(new { ok = true, data = new { Accounts = accounts, data.Settings, data.CurrentAccountId }, extra })); Console.Out.Flush(); }
             if (loginService != null) loginService.PostLoginCompletion.GetAwaiter().GetResult();
             return 0;

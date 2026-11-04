@@ -29,6 +29,13 @@ namespace SteamLoginLite.Models
         public long LastQueryAt { get; set; }
 
         [ScriptIgnore]
+        public bool IsLocalAccount { get; set; }
+        [ScriptIgnore]
+        public bool CanUseSavedLogin { get; set; }
+        [ScriptIgnore]
+        public bool HasPassword => !string.IsNullOrEmpty(EncryptedPassword);
+
+        [ScriptIgnore]
         public bool UiSelected { get; set; }
 
         [ScriptIgnore]

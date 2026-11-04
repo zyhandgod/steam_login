@@ -4,6 +4,8 @@
   <ItemGroup><Reference Include="System.Web.Extensions" /></ItemGroup>
   <ItemGroup>
     <Compile Include="../../Models/AppData.cs" Link="AppData.cs" />
+    <Compile Include="../../Services/SteamAccountSync.cs" Link="SteamAccountSync.cs" />
+    <Compile Include="../../Services/SteamLocalAccounts.cs" Link="SteamLocalAccounts.cs" />
     <Compile Include="../../Services/SteamService.cs" Link="SteamService.cs" />
     <Compile Include="../../Services/SteamVdfConfig.cs" Link="SteamVdfConfig.cs" />
   </ItemGroup>
