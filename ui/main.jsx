@@ -219,24 +219,19 @@ function Manager({ motionMode, setMotionMode }) {
     {
       title: "Steam 账号",
       dataIndex: "Username",
-      width: 220,
+      width: 270,
       sorter: (a, b) => a.Username.localeCompare(b.Username),
       render: (_, a) => (
         <div className="account-cell">
           <div className={`avatar av-${a.Username.length % 4}`}>
             {a.Username.slice(0, 2).toUpperCase()}
           </div>
-          <div>
+          <div className="account-identity">
             <Text title={a.Username} copyable={{ text: a.Username }}>
               <strong className="account-name">{a.Username}</strong>
             </Text>
-            {(a.Id === data.CurrentAccountId || a.Note?.trim()) && (
-              <div className="subline account-meta">
-                {a.Id === data.CurrentAccountId && (
-                  <span className="current-account-badge"><CheckCircleFilled /> 当前账号</span>
-                )}
-                {a.Note?.trim() && <span className="account-note" title={a.Note}>{a.Note}</span>}
-              </div>
+            {a.Id === data.CurrentAccountId && (
+              <span className="current-account-badge" title="当前账号"><CheckCircleFilled /> 当前</span>
             )}
           </div>
         </div>
@@ -244,15 +239,15 @@ function Manager({ motionMode, setMotionMode }) {
     },
     {
       title: "游戏昵称 / 查询标识",
-      width: 190,
+      width: 170,
       render: (_, a) => (
-        <Text copyable={{ text: effective(a) }}>{effective(a)}</Text>
+        <Text className="query-identifier" title={effective(a)} copyable={{ text: effective(a) }}><span className="query-name">{effective(a)}</span></Text>
       ),
     },
     {
       title: "生存等级",
       dataIndex: "Level",
-      width: 130,
+      width: 110,
       sorter: (a, b) => (a.Level ?? -1) - (b.Level ?? -1),
       render: (level, a) =>
         level == null ? (
@@ -274,7 +269,7 @@ function Manager({ motionMode, setMotionMode }) {
     {
       title: "账号状态",
       dataIndex: "Status",
-      width: 130,
+      width: 100,
       render: (value) => (
         <Tag
           bordered={false}
@@ -293,9 +288,18 @@ function Manager({ motionMode, setMotionMode }) {
       ),
     },
     {
+      title: "备注",
+      dataIndex: "Note",
+      width: 140,
+      className: "account-note-cell",
+      render: (note) => note?.trim() ? (
+        <span className="account-note" title={note}>{note}</span>
+      ) : null,
+    },
+    {
       title: "最近查询",
       dataIndex: "LastQueryAt",
-      width: 135,
+      width: 110,
       sorter: (a, b) => a.LastQueryAt - b.LastQueryAt,
       render: (value) => <span className="time">{stamp(value)}</span>,
     },
@@ -303,7 +307,7 @@ function Manager({ motionMode, setMotionMode }) {
       title: "操作",
       key: "actions",
       fixed: "right",
-      width: 210,
+      width: 140,
       render: (_, a) => (
         <Space size={2}>
           <Button
@@ -576,7 +580,7 @@ function Manager({ motionMode, setMotionMode }) {
                   Table.SELECTION_NONE,
                 ],
               }}
-              scroll={{ x: 1100, y: tableHeight }}
+              scroll={{ x: 1072, y: tableHeight }}
               pagination={{
                 current: page,
                 onChange: (nextPage, nextSize) => {

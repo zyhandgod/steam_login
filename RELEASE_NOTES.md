@@ -1,6 +1,6 @@
-# Steam Login Lite 2.1.6 · 中文本地版
+# Steam Login Lite 2.1.7 · 中文本地版
 
-备注默认为空，仅填写备注后才显示，不再显示默认“Steam 账号”文案。当前账号标记独立显示。保留紧凑列表和每页 20 条。保留远端最新的查询自动提交、Steam 会话识别和界面动效改进。提供完整解压即可运行的 Windows x64 ZIP 绿色包。
+备注调整为独立列，直接显示在账号状态右侧、最近查询左侧。当前账号标记与账号名同行，避免两层信息拥挤；空备注保持留白。保留紧凑行高和每页 20 条，支持完整解压即可运行的 Windows x64 ZIP 绿色包。
 
 - 使用中文界面，保留软件名和账号、昵称等原始数据。
 - 自带 Chromium，查询不再依赖 WebView2；自动填写并提交查询标识，回填封禁状态和生存等级；验证码仍需手动完成。
@@ -11,7 +11,7 @@
 
 ## 使用方式
 
-下载 `SteamLoginLite-2.1.6-win-x64.zip`，完整解压后双击 `SteamLoginLite.exe`。请保留整个解压文件夹，不要单独移动 EXE。
+下载 `SteamLoginLite-2.1.7-win-x64.zip`，完整解压后双击 `SteamLoginLite.exe`。请保留整个解压文件夹，不要单独移动 EXE。
 
 需要 Windows 10/11 x64 和 .NET Framework 4.8（通常系统已安装），无需安装 Node.js 或 WebView2。
 

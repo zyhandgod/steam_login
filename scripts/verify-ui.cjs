@@ -48,10 +48,17 @@ app.whenReady().then(async () => {
       "document.querySelectorAll('tr.ant-table-row').length===20",
     );
     assert.equal(await wc.executeJavaScript("document.querySelectorAll('tr.current-account-row').length"), 1);
-    assert.equal(await wc.executeJavaScript("!!document.querySelector('tr[data-row-key=\"demo-1\"] .subline')"), false);
+    assert.equal(await wc.executeJavaScript("!!document.querySelector('tr[data-row-key=\"demo-1\"] .account-note')"), false);
     assert.equal(await wc.executeJavaScript("document.querySelector('tr[data-row-key=\"demo-3\"] .account-note').textContent"), "常用账号");
     assert.equal(await wc.executeJavaScript("document.querySelector('tr.current-account-row .account-note').textContent"), "常用账号");
-    assert.equal(await wc.executeJavaScript("document.querySelector('.current-account-badge').textContent.trim()"), "当前账号");
+    assert.equal(await wc.executeJavaScript("document.querySelector('.current-account-badge').textContent.trim()"), "当前");
+    assert.deepEqual(await wc.executeJavaScript("[...document.querySelectorAll('.ant-table-thead th')].map(e=>e.textContent.trim()).filter(Boolean).slice(-4)"), ["账号状态", "备注", "最近查询", "操作"]);
+    assert.equal(await wc.executeJavaScript(`(() => {
+      const row = document.querySelector('tr.current-account-row');
+      const note = row.querySelector('.account-note').getBoundingClientRect();
+      const actions = row.lastElementChild.getBoundingClientRect();
+      return note.width > 0 && note.right <= actions.left && !row.querySelector('.account-cell .account-note');
+    })()`), true);
     assert.notEqual(await wc.executeJavaScript("getComputedStyle(document.querySelector('tr.current-account-row > td')).backgroundColor"), "rgb(255, 255, 255)");
     await wc.executeJavaScript(
       "document.querySelector('.selection-bar input').click()",
