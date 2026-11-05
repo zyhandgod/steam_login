@@ -58,6 +58,47 @@ class SessionTest
         Check(!SteamAccountSync.FillMissingData(existing, imported), "Ordinary duplicate import stays unchanged");
         var json = new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(data);
         Check(!json.Contains("IsLocalAccount") && !json.Contains("CanUseSavedLogin"), "Local eligibility never persisted or migrated");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var deleted = new AppData();
+        var removeMe = new AccountRecord { Username = "PLAYER", EncryptedPassword = "deleted-secret-ciphertext", Note = "deleted-note", GameId = "old-nickname", Level = 77 };
+        deleted.Accounts.Add(removeMe);
+        SteamAccountSync.Merge(deleted, records, "player");
+        SteamAccountSync.Remove(deleted, new[] { removeMe.Id });
+        Check(deleted.Accounts.Count == 1 && deleted.CurrentAccountId == "", "Delete removes current record and marker");
+        var deletedJson = serializer.Serialize(deleted);
+        Check(!deletedJson.Contains("deleted-secret-ciphertext") && !deletedJson.Contains("deleted-note"), "Deletion retains no removed credentials or notes");
+        for (var i = 0; i < 3; i++) {
+            deleted = serializer.Deserialize<AppData>(serializer.Serialize(deleted));
+            SteamAccountSync.Merge(deleted, records, "player");
+            Check(deleted.Accounts.Count == 1 && deleted.CurrentAccountId == "", "Restart/refresh must not resurrect deleted current account");
+        }
+        Check(deleted.IgnoredLocalAccounts.Count == 1, "Only the name tombstone persists, no duplicate markers");
+        var manuallyAdded = new AccountRecord { Username = "pLaYeR", EncryptedPassword = "new-secret-ciphertext", Note = "new-note" };
+        SteamAccountSync.RestoreName(deleted, manuallyAdded.Username);
+        deleted.Accounts.Add(manuallyAdded);
+        SteamAccountSync.Merge(deleted, records, "PLAYER");
+        Check(deleted.Accounts.Count == 2 && deleted.CurrentAccountId == manuallyAdded.Id && manuallyAdded.EncryptedPassword == "new-secret-ciphertext", "Manual re-add clears ignore case-insensitively and preserves new credentials");
+        SteamAccountSync.Remove(deleted, new[] { manuallyAdded.Id });
+        SteamAccountSync.RestoreName(deleted, "PLAYER");
+        var reimported = new AccountRecord { Username = "player", EncryptedPassword = "imported-password" };
+        deleted.Accounts.Add(reimported);
+        SteamAccountSync.Merge(deleted, records, "player");
+        Check(deleted.Accounts.Count == 2 && deleted.CurrentAccountId == reimported.Id, "Explicit import can restore ignored account without duplicate");
+        SteamAccountSync.Remove(deleted, deleted.Accounts.ConvertAll(a => a.Id));
+        Check(deleted.Accounts.Count == 0 && deleted.IgnoredLocalAccounts.Count == 2, "Batch delete suppresses all selected names");
+        SteamAccountSync.Merge(deleted, records, "player");
+        Check(deleted.Accounts.Count == 0, "Batch-deleted records stay removed");
+        deleted.IgnoredLocalAccounts.Clear();
+        SteamAccountSync.Merge(deleted, records, "player");
+        Check(deleted.Accounts.Count == 2, "Explicit settings restore can resync local records without passwords");
+        var legacy = serializer.Deserialize<AppData>("{\"Accounts\":[],\"Settings\":{}}");
+        SteamAccountSync.Merge(legacy, records, "player");
+        Check(legacy.Accounts.Count == 2, "Old data without ignore field still syncs normally");
+        legacy.IgnoredLocalAccounts = null;
+        SteamAccountSync.Remove(legacy, new[] { legacy.Accounts[0].Id });
+        SteamAccountSync.Merge(legacy, records, "player");
+        Check(legacy.Accounts.Count == 1, "Null legacy field repaired safely");
+        Console.WriteLine("PASS: delete/restart suppression, credential removal, case-insensitive manual add/import, batch delete, explicit restore and legacy compatibility.");
         Console.WriteLine("PASS: no-MostRecent VDF, active-session matching, stale registry, first login, wrong-account rejection.");
     }
 }

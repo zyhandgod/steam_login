@@ -10,6 +10,7 @@ namespace SteamLoginLite.Models
         public List<AccountRecord> Accounts { get; set; } = new List<AccountRecord>();
         public AppSettings Settings { get; set; } = new AppSettings();
         public string CurrentAccountId { get; set; } = "";
+        public List<string> IgnoredLocalAccounts { get; set; } = new List<string>();
     }
 
     public sealed class AccountRecord

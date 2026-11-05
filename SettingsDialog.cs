@@ -16,13 +16,15 @@ namespace SteamLoginLite
         private readonly CheckBox _library = new CheckBox { Text = "登录后打开游戏库", AutoSize = true };
         private readonly NumericUpDown _delay = new NumericUpDown { Minimum = 2, Maximum = 120, Width = 90 };
         private readonly NumericUpDown _interval = new NumericUpDown { Minimum = 500, Maximum = 30000, Increment = 100, Width = 90 };
+        private readonly CheckBox _restoreLocal = new CheckBox { Text = "保存时恢复已删除的本机账号同步", AutoSize = true };
+        public bool RestoreLocalAccounts => _restoreLocal.Checked;
         private readonly Label _runtime = new Label { AutoSize = true, MaximumSize = new Size(470, 0) };
         private readonly CancellationTokenSource _closing = new CancellationTokenSource();
         public AppSettings Settings => new AppSettings { SteamPath = _path.Text.Trim(), CloseRecommendations = _news.Checked, CloseFriendsList = _friends.Checked, OpenLibrary = _library.Checked, StartupDelaySeconds = (int)_delay.Value, QueryIntervalMilliseconds = (int)_interval.Value };
         internal bool[] SmokePreferences => new[] { _news.Checked, _friends.Checked, _library.Checked };
-        public SettingsDialog(AppSettings settings)
+        public SettingsDialog(AppSettings settings, bool hasIgnoredLocalAccounts = false)
         {
-            Text = "偏好设置"; ClientSize = new Size(560, 500); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false;
+            Text = "偏好设置"; ClientSize = new Size(560, hasIgnoredLocalAccounts ? 530 : 500); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent; Font = new Font("Microsoft YaHei UI", 9F); AutoScaleMode = AutoScaleMode.Dpi;
             _path.Text = settings.SteamPath; _news.Checked = settings.CloseRecommendations; _friends.Checked = settings.CloseFriendsList; _library.Checked = settings.OpenLibrary;
             _delay.Value = Math.Max(2, Math.Min(120, settings.StartupDelaySeconds)); _interval.Value = Math.Max(500, Math.Min(30000, settings.QueryIntervalMilliseconds));
@@ -52,6 +54,7 @@ namespace SteamLoginLite
                 try { if (Directory.Exists(PubgPlusQueryForm.CacheDirectory)) Directory.Delete(PubgPlusQueryForm.CacheDirectory, true); _runtime.Text = "查询缓存已清理，账号数据未改动。"; }
                 catch { _runtime.Text = "查询缓存仍被浏览器占用，请关闭查询窗口，稍后再试。"; }
             };
+            if (hasIgnoredLocalAccounts) { root.RowCount++; root.Controls.Add(_restoreLocal); }
             root.Controls.Add(new Label { Text = "账号保存在 Windows 用户目录。关闭工具即退出，不常驻后台。", AutoSize = true, ForeColor = SystemColors.GrayText });
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
             var save = new Button { Text = "保存", AutoSize = true }; var cancel = new Button { Text = "取消", AutoSize = true, DialogResult = DialogResult.Cancel };

@@ -207,15 +207,15 @@ namespace SteamLoginLite
                 account.Username = dialog.Username; account.Email = dialog.Email; account.GameId = dialog.GameId; account.Note = dialog.Note;
                 if (dialog.Password.Length > 0) account.EncryptedPassword = DataStore.Encrypt(dialog.Password);
                 if (dialog.EmailPassword.Length > 0) account.EncryptedEmailPassword = DataStore.Encrypt(dialog.EmailPassword);
-                if (isNew) _data.Accounts.Add(account); Save(); if (_preview) Render(); else Reload(); SetStatus("账号已保存。");
+                if (isNew) _data.Accounts.Add(account); SteamAccountSync.RestoreName(_data, account.Username); Save(); if (_preview) Render(); else Reload(); SetStatus("账号已保存。");
             }
         }
         private void Delete(List<AccountRecord> accounts)
         {
             if (accounts.Count == 0) { SetStatus("请先勾选账号。"); return; }
-            if (MessageBox.Show(this, "从工具中删除 " + accounts.Count + " 个账号？本机 Steam 记录不受影响，之后刷新可能再次同步。", "删除账号", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            var ids = new HashSet<string>(accounts.Select(a => a.Id)); _data.Accounts.RemoveAll(a => ids.Contains(a.Id)); _selected.ExceptWith(ids);
-            if (ids.Contains(_data.CurrentAccountId)) _data.CurrentAccountId = ""; Save(); Render();
+            if (MessageBox.Show(this, "从工具中删除 " + accounts.Count + " 个账号？会同时停止自动同步这些账号，Steam 本机记录不受影响。之后可手动添加或导入恢复。", "删除账号", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            var ids = new HashSet<string>(accounts.Select(a => a.Id)); SteamAccountSync.Remove(_data, ids); _selected.ExceptWith(ids);
+            Save(); Render(); SetStatus("已从工具删除，不会被本机同步自动加回；可以手动添加或导入恢复。");
         }
         private void Import()
         {
@@ -226,17 +226,18 @@ namespace SteamLoginLite
                 foreach (var row in dialog.Accounts)
                 {
                     var incoming = new AccountRecord { Username = row.Username, EncryptedPassword = DataStore.Encrypt(row.Password), Email = row.Email, EncryptedEmailPassword = DataStore.Encrypt(row.EmailPassword), GameId = row.GameId };
+                    SteamAccountSync.RestoreName(_data, row.Username);
                     var duplicate = _data.Accounts.FirstOrDefault(a => a.Username.Equals(row.Username, StringComparison.OrdinalIgnoreCase));
                     if (duplicate == null) { _data.Accounts.Add(incoming); added++; }
                     else if (SteamAccountSync.FillMissingData(duplicate, incoming)) updated++; else skipped++;
                 }
-                Save(); Render(); SetStatus("已新增 " + added + " 个，补全本机账号 " + updated + " 个，跳过重复账号 " + skipped + " 个。");
+                Save(); if (_preview) Render(); else Reload(); SetStatus("已新增 " + added + " 个，补全本机账号 " + updated + " 个，跳过重复账号 " + skipped + " 个。");
             }
         }
         private void Settings()
         {
-            using (var dialog = new SettingsDialog(_data.Settings))
-                if (dialog.ShowDialog(this) == DialogResult.OK) { _data.Settings = dialog.Settings; Save(); if (!_preview) Reload(); }
+            using (var dialog = new SettingsDialog(_data.Settings, _data.IgnoredLocalAccounts?.Count > 0))
+                if (dialog.ShowDialog(this) == DialogResult.OK) { _data.Settings = dialog.Settings; if (dialog.RestoreLocalAccounts) _data.IgnoredLocalAccounts?.Clear(); Save(); if (!_preview) Reload(); }
         }
         private async Task LoginAsync(AccountRecord account)
         {

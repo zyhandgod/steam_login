@@ -31,6 +31,7 @@ namespace SteamLoginLite.Services
                 if (!File.Exists(_path)) return new AppData();
                 var result = _json.Deserialize<AppData>(File.ReadAllText(_path, Encoding.UTF8)) ?? new AppData();
                 if (result.Accounts == null) result.Accounts = new System.Collections.Generic.List<AccountRecord>();
+                if (result.IgnoredLocalAccounts == null) result.IgnoredLocalAccounts = new List<string>();
                 if (result.Settings == null) result.Settings = new AppSettings();
                 return result;
             }

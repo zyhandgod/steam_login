@@ -42,6 +42,13 @@ internal static class NativeSmoke
                     form.SmokeSearch("PUBG_Player_28"); Check(form.Grid.Rows.Count == 1 && form.FilteredCount == 1, "Nickname search resets page");
                     form.SmokeSearch(""); form.SmokeClearSelection(); Check(form.SelectionCount == 0 && form.Grid.Rows.Count == 20, "Clear selection and pagination reset");
                     using (var settings = new SettingsDialog(form.Data.Settings)) Check(settings.SmokePreferences.All(v => v), "Steam preferences preserved");
+                    using (var restoreSettings = new SettingsDialog(form.Data.Settings, true)) {
+                        Check(!restoreSettings.RestoreLocalAccounts, "Deleted accounts are not restored by default");
+                        var layout = restoreSettings.Controls.OfType<TableLayoutPanel>().Single();
+                        var restore = layout.Controls.OfType<CheckBox>().Single(c => c.Text.Contains("恢复已删除"));
+                        restore.Checked = true;
+                        Check(restoreSettings.RestoreLocalAccounts, "Explicit local account restore available in settings");
+                    }
                     var note = form.Grid.GetCellDisplayRectangle(form.Grid.Columns["Note"].Index, 0, false);
                     var editButton = form.Grid.GetCellDisplayRectangle(form.Grid.Columns["Edit"].Index, 0, false);
                     Check(editButton.Width > 0 && editButton.Right <= form.Grid.ClientSize.Width, "All action buttons visible without scrolling");
