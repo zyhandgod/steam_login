@@ -38,6 +38,8 @@ dotnet build SteamLoginLite.csproj -c Release
 ./scripts/build.ps1
 ```
 
+3.0.0 ZIP 约 472 KiB，解压约 1.06 MiB（不包括单独安装的 WebView2 运行时及用户查询缓存）。
+
 正式包严格只包含 EXE、配置、三个 WebView2 接口/加载 DLL 和使用说明。构建脚本核对 6 个文件且解压大小不超过 5 MB；不打包浏览器、源码或缓存。
 
 ```powershell
