@@ -1,94 +1,55 @@
-# Steam Login Lite 2.1.8
+# Steam Login Lite 3.0.0 · 轻量原生版
 
-使用 Electron + React + Ant Design 的 Windows Steam 账号管理与切换工具。ZIP 绿色版完整解压后双击 `SteamLoginLite.exe`，无需安装工具、Node.js 或 WebView2。请保留整个解压目录。
+使用 Windows 原生 WinForms（.NET Framework 4.8），查询使用系统 WebView2。没有 Electron、React、Ant Design、Node.js、内置 Chromium、在线更新或托盘常驻。
 
-## 本地运行与手动换版
+## 使用
 
-已移除在线更新、版本检查、发布后台及更新辅助程序。软件启动不请求更新服务器，不上传账号数据。`steam.mooizz.com` 的发布和下载服务已下线。
+下载 `SteamLoginLite-3.0.0-win-x64.zip`，完整解压后双击 `SteamLoginLite.exe`。绿色包仅 6 个文件，需放在一起，无需安装本工具或 Node.js。
 
-换版时关闭旧工具，解压新版 ZIP 后运行。程序文件与账号数据分开存储，同一电脑、同一 Windows 用户下，新版会自动读取原数据。删除旧程序文件夹不会删除账号。
+Windows 10/11 x64，需 .NET Framework 4.8（最新 Windows 通常已有）。首次查询如果没有 WebView2 Evergreen Runtime，工具会从 Microsoft 官方地址下载、验证安装器签名并安装，再继续当前查询；已有运行时时不重复安装。安装失败可点击查询窗口“重试”，或在偏好设置中检测/安装。WebView2 是单独安装的系统共享浏览器组件，占用系统磁盘，不放在绿色包中。安装可能需要网络及 Windows 授权。
 
-账号数据位于：
+## 保留的功能
 
-```text
-%LOCALAPPDATA%\SteamLoginLite\accounts.json
-```
+- 账号添加、编辑、复制、备注、删除，以及批量导入预览；同名本机账号只补全缺失资料。
+- 搜索账号、昵称、备注或邮箱，状态筛选，账号/等级/最近查询排序，20/50/100 条分页。
+- 勾选单条、选择当前页、跨页全选筛选结果、取消选择、批量查询和删除。
+- 备注独立显示在账号状态右侧，未设置备注则留空；生存等级同时显示阶位。
+- 启动或刷新时同步本机 Steam 登录记录，按账号名合并，不覆盖已有密码、备注、游戏昵称和查询数据。“本机”表示有本机记录，“当前”只标识实际活动会话。外部切换后可刷新识别。
+- 优先尝试 Steam 已记住的登录状态，已是目标账号在线时沿用会话；不可用时使用工具保存的密码，缺少密码会提示补充。登录状态过期或 Steam Guard 仍需手动验证，不提取或导出 Steam 登录凭证。
+- Steam 登录后关闭推荐/新闻、关闭好友列表、打开游戏库，保留启动等待和查询间隔设置；处理状态显示在底部。
+- 查询自动填写/提交，验证码手动完成；可信 PUBG.PLUS API 返回后自动保存，批量继续、结束后关闭窗口。支持重试、跳过和结束。基本状态返回但 8 秒无等级时保留原等级。
+- 查询任务按不可变账号 ID 和查询标识绑定；同昵称不同账号不去重，每次重试/下一条都隔离旧回调。
+- 关闭主窗口即退出，停止未完成查询及 Steam 后续窗口操作，Steam 继续运行。
 
-保存账号、DPAPI 加密密码、备注、查询结果及设置。兼容旧版本数据。首次运行仍会在旧版目录、桌面和下载目录查找旧 `data/accounts.json`，只在固定数据目录不存在时迁移，不覆盖已有数据。更换电脑或 Windows 用户后，密码需要重新填写；建议换版前备份数据目录。保存通过临时文件原子替换，保留 `.bak`；读取损坏数据时保留 `.broken-时间戳` 备份，不以空数据覆盖。
+删除工具中的本机账号不会删除 Steam 自己保存的记录，再次同步时可能重新出现。
 
-## 本机 Steam 账号同步
+## 数据与换版
 
-启动或点击右上角刷新时，自动读取所选 Steam 目录的 `config/loginusers.vdf`，补充本机登录过的账号。“本机”标记表示存在本机记录；“当前”绿色标记依据实际活动账号及 Steam 进程识别，不以最近登录记录代替在线状态。外部切换或退出 Steam 后，可刷新重新识别。
+账号数据始终在 `%LOCALAPPDATA%\SteamLoginLite\accounts.json`。3.0.0 直接读取 2.x 及原生旧版的原有数据；删除程序目录、重新解压新 ZIP 不删除账号。同一 Windows 用户下密码继续可用，换电脑或用户需要重新填写。数据仍通过临时文件原子保存并保留 `.bak`；首次运行的旧目录迁移仍保留。读取失败时禁止覆盖原数据。
 
-已有账号按账号名合并，保留密码、游戏昵称、备注、查询结果和原 ID；批量导入同名本机账号时仅补全缺失的密码、邮箱和游戏昵称，不覆盖已有值；新同步账号备注为空。不提取或导出 Steam 登录凭证，是否可尝试本机登录只由本机记录标志判断，不保证登录状态仍有效。删除工具记录不会删除 Steam 的记忆，之后同步可能再次加入。
+换版前关闭旧程序，建议备份 `%LOCALAPPDATA%\SteamLoginLite`，再运行新目录内 EXE。WebView2 查询缓存位于该用户目录下的 `WebView2` 子目录，偏好设置可单独清理缓存，不删除账号。首次安装器临时下载在 `installer` 子目录，安装后清理。
 
-点击登录时，本机已记住且允许自动登录的账号优先使用 Steam 保存的状态；若已是该账号在线则沿用会话。切换其他账号会先退出 Steam，设置目标账号并启动；状态过期或需验证时，请在 Steam 窗口完成。未保留登录状态时使用工具保存的密码，没有密码则提示补充。不会绕过 Steam Guard。将程序或数据移到另一台电脑不会带走 Steam 本机登录状态。
+## 开发、构建和验证
 
-## 功能
-
-- 紧凑账号列表，默认每页 20 条；备注独立显示在账号状态右侧，默认为空；过长时省略显示，悬停可查看完整内容。“当前”标记与账号名同行显示。
-
-- 偏好设置 → 界面动效：默认“流畅动效”，可选择“跟随系统”或“减少动效”，切换立即生效并在本机保存。Windows 关闭系统动画时，仍可使用流畅动效。
-- 账号添加、编辑、备注、搜索、状态筛选、等级排序与批量导入。
-- 当前页选择、跨页全选筛选结果、一键取消选择、批量查询与删除。
-- Steam 账号切换及登录后打开游戏库、关闭好友列表和推荐/新闻窗口。
-- 自带 Chromium 查询 PUBG.PLUS，自动填写查询标识并点击查询，保存结果后继续下一个账号；遇到验证码仍需手动完成，提交异常可重试或跳过。
-- 批量查询支持进度、重试、跳过和结束。按账号记录及昵称绑定结果，避免串号。
-- 仅封禁状态返回、等级在 8 秒内未返回时，保留原等级。
-- 关闭主窗口即退出，无托盘常驻。未完成的查询及登录后窗口操作会停止，Steam 继续运行。
-
-本地存储不代表所有功能可离线使用：Steam 登录和手动 PUBG.PLUS 查询仍需要网络，但不经过自己的更新服务器。
-
-## 运行要求
-
-Windows 10/11 x64、.NET Framework 4.8（通常系统已安装）。Electron 自带浏览器，不需要 WebView2。
-
-macOS 仅提供界面预览，默认展示 28 条明确标记的示例账号，不读取或覆盖真实 Windows 账号。正式账号读写、登录切换与查询在 Windows 上使用。
-
-登录切换会退出 Steam 和正在运行的 PUBG，请先保存游戏进度，按需完成 Steam Guard 验证。登录后处理校验 ActiveUser 会话，再处理初始配置刷新及窗口；主界面显示等待、完成或失败。新闻、好友和默认游戏库配置支持双向写入，并保留初始配置备份。实际窗口行为需在 Windows 验证。
-
-## 开发与构建
-
-进入本 README 所在、包含 `package.json` 的项目目录：
-
-```sh
-npm ci
-npm run dev
-```
-
-Windows 开发需要 .NET SDK 8，并构建登录/加密辅助程序：
+源码不再使用 npm。Windows 安装 .NET SDK 8 后：
 
 ```powershell
-npm run build:helper
-npm run dev
+dotnet build SteamLoginLite.csproj -c Release
+./scripts/build.ps1
 ```
 
-构建完整绿色包：
+正式包严格只包含 EXE、配置、三个 WebView2 接口/加载 DLL 和使用说明。构建脚本核对 6 个文件且解压大小不超过 5 MB；不打包浏览器、源码或缓存。
 
 ```powershell
-npm run pack:win
+dotnet run --project tests/QueryBatch/QueryBatch.csproj -c Release
+dotnet run --project tests/SteamPreferences/SteamPreferences.csproj -c Release
+dotnet run --project tests/SteamLocalAccounts/SteamLocalAccounts.csproj -c Release
+dotnet run --project tests/SteamSession/SteamSession.csproj -c Release
+dotnet run --project tests/ParserSmoke/ParserSmoke.csproj -c Release
+dotnet run --project tests/NativeSmoke/NativeSmoke.csproj -c Release -- --ui release/native-preview.png
+dotnet run --project tests/NativeSmoke/NativeSmoke.csproj -c Release -- --query
 ```
 
-输出：`release/SteamLoginLite-2.1.8-win-x64.zip`。构建包不包含更新模块、发布后台或签名凭证。原 WinForms 源码仍保留供参考；`dotnet build SteamLoginLite.csproj` 构建的是旧界面。
+Windows CI 运行原生界面及真实 WebView2 夹具，不提交真实玩家查询、不读取真实账号。`--preview` 启动隔离示例界面；WinForms 正式运行及预览只支持 Windows，macOS 可编译检查和运行纯逻辑测试。旧 Electron 实现在历史标签 v2.1.8 中保留。
 
-## 验证
-
-UI smoke 在所有平台使用隔离示例数据，并强制模拟系统减少动画，验证应用动效覆盖、模式切换和重启后的偏好保存，不访问真实账号。
-
-```sh
-npm test
-npm run test:query
-npm run test:ui
-npm run test:preferences
-npm run test:local
-```
-
-`test:query` 使用隔离的真实 Chromium 和本地 HTTPS 响应夹具验证昵称填入、结果合并及回填，不提交真实玩家查询。`test:ui` 在 Mac 预览模式验证账号表格、全选与取消、设置开关，并检查更新控件不存在。`test:preferences` 验证配置双向写入与备份。
-
-Windows 上还可执行原有服务 smoke：
-
-```powershell
-dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
-```
-
-本地管理界面与远程查询网页使用独立渲染进程。查询网页无 Node/本机 IPC 权限，启用沙箱和上下文隔离，拒绝下载与权限请求；仅从可信 API 主机解析匹配的查询响应。
+自动测试不能代替真实 Steam 登录、远程网站及验证码验收。迁移功能清单见 [原生迁移说明](docs/native-migration.md)。

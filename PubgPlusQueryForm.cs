@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -16,252 +18,198 @@ namespace SteamLoginLite
     internal sealed class PubgPlusQueryForm : Form
     {
         private const string PageUrl = "https://pubg.plus/zh-CN/player";
-        private readonly List<string> _gameIds;
-        private readonly WebView2 _web = new WebView2();
-        private readonly Label _progress = new Label();
-        private readonly Label _instruction = new Label();
-        private readonly Timer _fillTimer = new Timer { Interval = 500 };
+        private readonly QueryBatchState _batch;
+        private readonly int _interval;
+        private readonly Label _progress = new Label { AutoSize = true };
+        private readonly Label _instruction = new Label { AutoSize = true };
+        private readonly Panel _browser = new Panel { Dock = DockStyle.Fill };
+        private readonly Button _retry = new Button { Text = "重试", AutoSize = true };
+        private readonly Button _skip = new Button { Text = "跳过", AutoSize = true };
+        private readonly System.Windows.Forms.Timer _fillTimer = new System.Windows.Forms.Timer { Interval = 500 };
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer();
         private readonly PubgPlusResponseParser _parser = new PubgPlusResponseParser();
-        private readonly object _responseSync = new object();
-        private readonly Dictionary<string, PubgPlusResult> _masteryResults = new Dictionary<string, PubgPlusResult>(StringComparer.OrdinalIgnoreCase);
-        private PubgPlusResult _basicResult;
-        private int _index;
-        private bool _acceptPending;
+        private readonly CancellationTokenSource _closing = new CancellationTokenSource();
+        private readonly Action<CoreWebView2> _fixture;
+        private CoreWebView2Environment _environment;
+        private WebView2 _web;
+        private int _fillTicks;
+        private bool _finishing;
+        private bool _ready;
+        public QueryBatchState Batch => _batch;
+        public event Action<QueryAccount, PubgPlusResult> ResultReceived;
+        internal event Action<string> Completed;
+        internal string SmokeStatus => _instruction.Text;
+        internal void SmokeSkip() => _skip.PerformClick();
+        internal static string CacheDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SteamLoginLite", "WebView2");
 
-        public event Action<PubgPlusResult> ResultReceived;
-
-        public PubgPlusQueryForm(IEnumerable<string> gameIds)
+        public PubgPlusQueryForm(IReadOnlyList<QueryAccount> accounts, int interval, Action<CoreWebView2> fixture = null)
         {
-            _gameIds = gameIds.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            Text = "PUBG.PLUS 等级与封禁查询";
-            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
-            Width = 1120;
-            Height = 760;
-            MinimumSize = new Size(900, 620);
-            StartPosition = FormStartPosition.CenterParent;
-            Font = new Font("Microsoft YaHei UI", 9F);
-            BackColor = Color.FromArgb(244, 247, 251);
-
-            var header = new Panel { Dock = DockStyle.Top, Height = 86, BackColor = Color.White, Padding = new Padding(22, 10, 22, 10) };
-            header.Paint += (_, e) => { using (var pen = new Pen(Color.FromArgb(224, 230, 239))) e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1); };
-            _progress.Dock = DockStyle.Top;
-            _progress.Height = 32;
-            _progress.Font = new Font(Font.FontFamily, 10.5F, FontStyle.Bold);
-            _progress.ForeColor = Color.FromArgb(19, 28, 46);
-            _instruction.Dock = DockStyle.Bottom;
-            _instruction.Height = 28;
-            _instruction.Text = "查询 ID 已自动填写，请在网页中手动点击“查询”。网页返回结果后会自动保存等级和封禁状态。";
-            _instruction.ForeColor = Color.FromArgb(102, 116, 136);
-            header.Controls.Add(_instruction);
-            header.Controls.Add(_progress);
-
-            _web.Dock = DockStyle.Fill;
-            _web.BackColor = Color.FromArgb(244, 247, 251);
-            Controls.Add(_web);
-            Controls.Add(header);
-            _fillTimer.Tick += async (_, __) => await FillCurrentIdAsync();
+            _batch = new QueryBatchState(accounts); _interval = Math.Max(500, Math.Min(30000, interval)); _fixture = fixture;
+            Text = "PUBG.PLUS 查询"; ClientSize = new Size(1080, 720); MinimumSize = new Size(900, 600);
+            Font = new Font("Microsoft YaHei UI", 9F); AutoScaleMode = AutoScaleMode.Dpi; StartPosition = FormStartPosition.CenterParent;
+            var header = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(10), FlowDirection = FlowDirection.TopDown, WrapContents = false };
+            header.Controls.Add(_progress); header.Controls.Add(_instruction);
+            var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+            var cancel = new Button { Text = "结束查询", AutoSize = true };
+            actions.Controls.Add(_retry); actions.Controls.Add(_skip); actions.Controls.Add(cancel); header.Controls.Add(actions);
+            Controls.Add(_browser); Controls.Add(header);
+            Resize += (_, __) => { _instruction.MaximumSize = new Size(Math.Max(200, ClientSize.Width - 28), 0); _progress.MaximumSize = _instruction.MaximumSize; };
+            _instruction.MaximumSize = new Size(ClientSize.Width - 28, 0);
+            _retry.Click += async (_, __) => { if (_ready) await BeginCurrentAsync(); else await InitializeAsync(); };
+            _skip.Click += async (_, __) => { if (!_ready) return; _batch.Advance(false); await BeginCurrentAsync(); };
+            cancel.Click += (_, __) => Close();
+            _fillTimer.Tick += async (_, __) => await FillAsync();
             Shown += async (_, __) => await InitializeAsync();
-            FormClosed += (_, __) => _fillTimer.Stop();
+            FormClosing += (_, __) => { if (!_batch.Finished) Completed?.Invoke("查询已结束：已保存 " + _batch.Saved + " 个，跳过 " + _batch.Skipped + " 个。"); _closing.Cancel(); _batch.Cancel(); _fillTimer.Stop(); _web?.Dispose(); };
+            FormClosed += (_, __) => { _fillTimer.Dispose(); _closing.Dispose(); };
         }
 
-        private string CurrentId => _index >= 0 && _index < _gameIds.Count ? _gameIds[_index] : "";
-
-        private async System.Threading.Tasks.Task InitializeAsync()
+        private void Status(string text) { if (!IsDisposed && !Disposing) _instruction.Text = text; }
+        private async Task InitializeAsync()
         {
-            if (_gameIds.Count == 0) { Close(); return; }
+            _retry.Enabled = _skip.Enabled = false;
             try
             {
-                var runtimeVersion = CoreWebView2Environment.GetAvailableBrowserVersionString();
-                if (string.IsNullOrWhiteSpace(runtimeVersion)) throw new InvalidOperationException("未检测到 WebView2 Runtime");
-                var dataDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "webview2");
-                Directory.CreateDirectory(dataDirectory);
-                var environment = await CoreWebView2Environment.CreateAsync(null, dataDirectory);
-                await _web.EnsureCoreWebView2Async(environment);
-                await _web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("try{localStorage.setItem('pubgSelectedPlatform','steam');}catch(e){}");
-                _web.CoreWebView2.WebResourceResponseReceived += OnWebResourceResponseReceived;
-                _web.CoreWebView2.ProcessFailed += (_, args) => BeginInvoke(new Action(() =>
-                    MessageBox.Show("PUBG.PLUS 网页进程异常：" + args.ProcessFailedKind, "查询窗口异常", MessageBoxButtons.OK, MessageBoxIcon.Warning)));
-                _web.NavigationCompleted += (_, __) => _fillTimer.Start();
-                UpdateProgress();
-                _web.Source = new Uri(PageUrl);
+                await WebView2Runtime.EnsureAsync(Status, _closing.Token);
+                if (_closing.IsCancellationRequested) return;
+                Directory.CreateDirectory(CacheDirectory);
+                _environment = await CoreWebView2Environment.CreateAsync(null, CacheDirectory, new CoreWebView2EnvironmentOptions());
+                if (_closing.IsCancellationRequested) return;
+                _ready = true; await BeginCurrentAsync();
             }
-            catch (Exception ex)
-            {
-                OpenInDefaultBrowser(ex);
-            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { Status("查询初始化失败：" + ex.Message + " 点击重试可重新安装或初始化，不会转到外部浏览器。"); }
+            finally { if (!IsDisposed) { _retry.Enabled = true; _skip.Enabled = _ready; } }
         }
 
-        private void OpenInDefaultBrowser(Exception reason)
+        private async Task BeginCurrentAsync()
         {
-            _fillTimer.Stop();
+            _fillTimer.Stop(); _finishing = false;
+            var generation = _batch.Restart();
+            _web?.Dispose(); _web = null; _browser.Controls.Clear();
+            if (_batch.Finished) { FinishBatch(); return; }
+            _retry.Enabled = _skip.Enabled = false;
+            var task = _batch.Current;
+            var web = new WebView2 { Dock = DockStyle.Fill };
+            _web = web; _browser.Controls.Add(web);
+            _progress.Text = "查询 " + (_batch.Index + 1) + " / " + _batch.Accounts.Count + "：" + task.GameId + "　已保存 " + _batch.Saved + "，跳过 " + _batch.Skipped;
+            Status("正在加载查询页面…");
             try
             {
-                Process.Start(new ProcessStartInfo(PageUrl) { UseShellExecute = true });
-                var copied = false;
-                try
-                {
-                    if (!string.IsNullOrWhiteSpace(CurrentId))
-                    {
-                        Clipboard.SetText(CurrentId);
-                        copied = true;
-                    }
-                }
-                catch { }
-
-                MessageBox.Show(
-                    "当前电脑无法使用内置浏览器，已改用系统默认浏览器打开 PUBG.PLUS。" +
-                    (copied ? "\r\n当前查询 ID 已复制到剪贴板，可直接粘贴查询。" : "") +
-                    "\r\n\r\n默认浏览器中的查询结果无法自动回填到切换器；需要自动保存等级和封禁状态时，请安装 Microsoft Edge WebView2 Runtime。" +
-                    "\r\n\r\n原因：" + reason.Message,
-                    "已使用默认浏览器",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("无法打开系统默认浏览器。\r\n\r\n" + ex.Message, "打开失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            Close();
-        }
-
-        private async System.Threading.Tasks.Task FillCurrentIdAsync()
-        {
-            if (_web.CoreWebView2 == null || string.IsNullOrWhiteSpace(CurrentId)) return;
-            var idJson = _json.Serialize(CurrentId);
-            var script = "(() => { const i=document.querySelector('.search-input input'); if(!i||i.disabled||i.readOnly)return false; const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; s.call(i," + idJson + "); i.dispatchEvent(new Event('input',{bubbles:true})); i.dispatchEvent(new Event('change',{bubbles:true})); return i.value===" + idJson + "; })()";
-            try
-            {
-                var result = await _web.ExecuteScriptAsync(script);
-                if (string.Equals(result, "true", StringComparison.OrdinalIgnoreCase)) _fillTimer.Stop();
-            }
-            catch { }
-        }
-
-        private async void OnWebResourceResponseReceived(object sender, CoreWebView2WebResourceResponseReceivedEventArgs e)
-        {
-            var expectedId = CurrentId;
-            string requestAccountId;
-            var requestKind = PubgPlusRequestMatcher.Classify(e.Request.Uri, expectedId, out requestAccountId);
-            if (requestKind == PubgPlusRequestKind.None) return;
-            try
-            {
-                using (var stream = await e.Response.GetContentAsync())
-                using (var reader = new StreamReader(stream))
-                {
-                    var body = await reader.ReadToEndAsync();
-                    if (requestKind == PubgPlusRequestKind.Legacy)
-                    {
-                        QueueAcceptedResult(_parser.Parse(body, expectedId));
-                        return;
-                    }
-
-                    if (requestKind == PubgPlusRequestKind.Basic)
-                    {
-                        var basic = _parser.ParseBasic(body, expectedId);
-                        if (basic == null) return;
-                        lock (_responseSync) _basicResult = basic;
-                        ScheduleBasicFallback(expectedId, basic.AccountId);
-                    }
-                    else
-                    {
-                        var mastery = _parser.ParseSurvivalMastery(body, requestAccountId);
-                        if (mastery == null) return;
-                        lock (_responseSync) _masteryResults[mastery.AccountId] = mastery;
-                    }
-
-                    TryQueueCombinedResult(expectedId);
-                }
-            }
-            catch { }
-        }
-
-        private void TryQueueCombinedResult(string expectedId)
-        {
-            PubgPlusResult combined = null;
-            lock (_responseSync)
-            {
-                if (_acceptPending || _basicResult == null || !string.Equals(_basicResult.GameId, expectedId, StringComparison.OrdinalIgnoreCase)) return;
-                PubgPlusResult mastery;
-                if (!_masteryResults.TryGetValue(_basicResult.AccountId, out mastery)) return;
-                _acceptPending = true;
-                combined = new PubgPlusResult
-                {
-                    GameId = _basicResult.GameId,
-                    AccountId = _basicResult.AccountId,
-                    RawStatus = _basicResult.RawStatus,
-                    Status = _basicResult.Status,
-                    HasLevel = true,
-                    Level = mastery.Level,
-                    Tier = mastery.Tier
+                await web.EnsureCoreWebView2Async(_environment);
+                if (!Current(generation, web)) return;
+                var core = web.CoreWebView2;
+                core.Settings.AreDevToolsEnabled = false; core.Settings.AreDefaultContextMenusEnabled = false; core.Settings.IsStatusBarEnabled = false;
+                core.PermissionRequested += (_, args) => args.State = CoreWebView2PermissionState.Deny;
+                core.DownloadStarting += (_, args) => args.Cancel = true;
+                core.NewWindowRequested += (_, args) => args.Handled = true;
+                core.NavigationStarting += (_, args) => { if (!AllowedPage(args.Uri)) args.Cancel = true; };
+                core.ProcessFailed += (_, __) => { if (Current(generation, web)) { _fillTimer.Stop(); Status("查询网页进程已停止，请点击重试。"); } };
+                core.WebResourceResponseReceived += async (_, args) => await ResponseAsync(args, generation, web, task.GameId);
+                core.NavigationCompleted += (_, args) => {
+                    if (!Current(generation, web)) return;
+                    if (!args.IsSuccess) { Status("页面加载失败，可点击重试；请检查网络。"); return; }
+                    _fillTicks = 0; _fillTimer.Start(); Status("正在填写并提交查询；验证码请在页面中手动完成。");
                 };
+                await core.AddScriptToExecuteOnDocumentCreatedAsync("try{localStorage.setItem('pubgSelectedPlatform','steam');}catch(e){}");
+                if (!Current(generation, web)) return;
+                _fixture?.Invoke(core);
+                core.Navigate(PageUrl);
             }
-            QueueAcceptedResult(combined);
+            catch (Exception ex) { if (Current(generation, web)) Status("查询页面初始化失败：" + ex.Message + "，请重试。"); }
+            finally { if (Current(generation, web)) _retry.Enabled = _skip.Enabled = true; }
         }
-
-        private async void ScheduleBasicFallback(string expectedId, string accountId)
+        private static bool AllowedPage(string url)
         {
+            Uri uri;
+            return url == "about:blank" || (Uri.TryCreate(url, UriKind.Absolute, out uri) && uri.Scheme == "https" && uri.Host.Equals("pubg.plus", StringComparison.OrdinalIgnoreCase));
+        }
+        private bool Current(int generation, WebView2 web) => !IsDisposed && !Disposing && !_closing.IsCancellationRequested && _batch.IsCurrent(generation) && ReferenceEquals(_web, web);
+        private static string Script()
+        {
+            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("SteamLoginLite.Assets.query-autofill.js"))
+            using (var reader = new StreamReader(stream)) return reader.ReadToEnd();
+        }
+        private bool _filling;
+        private async Task FillAsync()
+        {
+            if (_filling || _web?.CoreWebView2 == null || _batch.Finished || _finishing) return;
+            var web = _web; var generation = _batch.Generation; _filling = true;
             try
             {
-                await System.Threading.Tasks.Task.Delay(4000);
-                PubgPlusResult fallback = null;
-                lock (_responseSync)
+                var result = await web.ExecuteScriptAsync(Script().Replace("__QUERY_ID_JSON__", _json.Serialize(_batch.Current.GameId)));
+                if (!Current(generation, web)) return;
+                if (result == "\"submitted\"") { _fillTimer.Stop(); Status("已提交，正在等待查询结果；如有验证码请手动完成，成功后会自动保存并继续。"); }
+                else if (result == "\"manual\"" || ++_fillTicks >= 60) { _fillTimer.Stop(); Status("请在页面中完成验证码或点击查询；读取结果后会自动保存并继续。"); }
+            }
+            catch { if (Current(generation, web)) { _fillTimer.Stop(); Status("自动填写未完成，可在网页手动输入并查询，或点击重试。"); } }
+            finally { _filling = false; }
+        }
+
+        private async Task ResponseAsync(CoreWebView2WebResourceResponseReceivedEventArgs args, int generation, WebView2 web, string expected)
+        {
+            if (!Current(generation, web) || args.Response.StatusCode < 200 || args.Response.StatusCode >= 300) return;
+            string accountId; var kind = PubgPlusRequestMatcher.Classify(args.Request.Uri, expected, out accountId);
+            if (kind == PubgPlusRequestKind.None) return;
+            try
+            {
+                string body;
+                using (var source = await args.Response.GetContentAsync())
                 {
-                    if (_acceptPending || _basicResult == null ||
-                        !string.Equals(_basicResult.GameId, expectedId, StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(_basicResult.AccountId, accountId, StringComparison.OrdinalIgnoreCase)) return;
-                    _acceptPending = true;
-                    fallback = new PubgPlusResult
+                    if (!Current(generation, web) || source == null) return;
+                    using (var target = new MemoryStream())
                     {
-                        GameId = _basicResult.GameId,
-                        AccountId = _basicResult.AccountId,
-                        RawStatus = _basicResult.RawStatus,
-                        Status = _basicResult.Status,
-                        HasLevel = false
-                    };
+                        var buffer = new byte[32768]; int count;
+                        while ((count = await source.ReadAsync(buffer, 0, buffer.Length, _closing.Token)) > 0)
+                        { if (target.Length + count > 2 * 1024 * 1024) return; target.Write(buffer, 0, count); }
+                        body = Encoding.UTF8.GetString(target.ToArray());
+                    }
                 }
-                QueueAcceptedResult(fallback);
+                if (!Current(generation, web)) return;
+                PubgPlusResult result;
+                if (kind == PubgPlusRequestKind.Legacy) result = _batch.Accept(generation, _parser.Parse(body, expected));
+                else if (kind == PubgPlusRequestKind.Basic)
+                {
+                    var basic = _parser.ParseBasic(body, expected);
+                    result = _batch.AddBasic(generation, basic);
+                    if (basic != null && result == null) { Status("已读取账号状态，正在等待等级…"); _ = FallbackAsync(generation, web); }
+                }
+                else result = _batch.AddMastery(generation, _parser.ParseSurvivalMastery(body, accountId));
+                if (result != null) await AcceptAsync(result, generation, web);
             }
-            catch { }
+            catch (OperationCanceledException) { }
+            catch (Exception) { if (Current(generation, web)) Status("查询响应读取失败，请点击重试或跳过。"); }
         }
-
-        private void QueueAcceptedResult(PubgPlusResult result)
+        private async Task FallbackAsync(int generation, WebView2 web)
         {
-            if (result == null || IsDisposed || !IsHandleCreated) return;
             try
             {
-                BeginInvoke(new Action(() =>
-                {
-                    if (!IsDisposed && string.Equals(result.GameId, CurrentId, StringComparison.OrdinalIgnoreCase)) AcceptResult(result);
-                }));
+                await Task.Delay(8000, _closing.Token);
+                if (!Current(generation, web)) return;
+                var result = _batch.Fallback(generation);
+                if (result != null) await AcceptAsync(result, generation, web);
             }
-            catch { }
+            catch (OperationCanceledException) { }
         }
-
-        private void AcceptResult(PubgPlusResult result)
+        private async Task AcceptAsync(PubgPlusResult result, int generation, WebView2 web)
         {
-            ResultReceived?.Invoke(result);
-            lock (_responseSync)
+            if (!Current(generation, web) || _finishing) return;
+            _finishing = true; _fillTimer.Stop(); _retry.Enabled = _skip.Enabled = false;
+            try
             {
-                _basicResult = null;
-                _masteryResults.Clear();
-                _acceptPending = false;
+                ResultReceived?.Invoke(_batch.Current, result);
+                Status("查询结果已保存，准备继续…");
+                _batch.Advance(true);
+                await Task.Delay(_interval, _closing.Token);
+                if (!IsDisposed && !_closing.IsCancellationRequested) await BeginCurrentAsync();
             }
-            _index++;
-            if (_index >= _gameIds.Count)
-            {
-                DialogResult = DialogResult.OK;
-                Close();
-                return;
-            }
-            UpdateProgress();
-            _fillTimer.Start();
-            _web.Source = new Uri(PageUrl);
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { if (Current(generation, web)) { _batch.SaveFailed(generation); _finishing = false; Status("结果保存失败：" + ex.Message + "；请重试。"); _retry.Enabled = _skip.Enabled = true; } }
         }
-
-        private void UpdateProgress()
+        private void FinishBatch()
         {
-            _progress.Text = "正在查询 " + (_index + 1) + " / " + _gameIds.Count + "：" + CurrentId;
+            var summary = "查询结束：已保存 " + _batch.Saved + " 个，跳过 " + _batch.Skipped + " 个。";
+            Completed?.Invoke(summary); DialogResult = DialogResult.OK; Close();
         }
     }
 }

@@ -6,26 +6,36 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: npm ci
-      - run: npm test
-      - run: npm run test:preferences
-      - run: npm run test:local
-      - run: npm run test:session
-      - run: npm run test:query
-      - run: dotnet run --project tests/ParserSmoke/ParserSmoke.csproj
-      - run: npm run pack:win
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: 核心查询与账号测试
+        run: |
+          dotnet run --project tests/QueryBatch/QueryBatch.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/SteamPreferences/SteamPreferences.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/SteamLocalAccounts/SteamLocalAccounts.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/SteamSession/SteamSession.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/ParserSmoke/ParserSmoke.csproj -c Release
+          exit $LASTEXITCODE
+      - name: 官方查询组件安装器校验
+        run: dotnet run --project tests/NativeSmoke/NativeSmoke.csproj -c Release -- --installer
+      - name: 原生界面及截图
+        run: dotnet run --project tests/NativeSmoke/NativeSmoke.csproj -c Release -- --ui release/native-preview.png
+      - name: 真实 WebView2 夹具查询
+        run: dotnet run --project tests/NativeSmoke/NativeSmoke.csproj -c Release -- --query
+      - name: 构建轻量绿色包
+        run: ./scripts/build.ps1
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: SteamLoginLite-win-x64
-          path: release/SteamLoginLite-*-win-x64.zip
+          name: SteamLoginLite-native-win-x64
+          path: |
+            release/SteamLoginLite-*-win-x64.zip
+            release/native-preview.png
