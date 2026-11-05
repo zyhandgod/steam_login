@@ -38,6 +38,7 @@ namespace SteamLoginLite
         public QueryBatchState Batch => _batch;
         public event Action<QueryAccount, PubgPlusResult> ResultReceived;
         internal event Action<string> Completed;
+        internal event Action<string> Trace;
         internal string SmokeStatus => _instruction.Text;
         internal void SmokeSkip() => _skip.PerformClick();
         internal static string CacheDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SteamLoginLite", "WebView2");
@@ -45,7 +46,8 @@ namespace SteamLoginLite
         public PubgPlusQueryForm(IReadOnlyList<QueryAccount> accounts, int interval, Action<CoreWebView2> fixture = null)
         {
             _batch = new QueryBatchState(accounts); _interval = Math.Max(500, Math.Min(30000, interval)); _fixture = fixture;
-            Text = "PUBG.PLUS 查询"; ClientSize = new Size(1080, 720); MinimumSize = new Size(900, 600);
+            Text = "PUBG.PLUS 查询";
+            try { Icon = Icon.ExtractAssociatedIcon(typeof(MainForm).Assembly.Location); } catch { } ClientSize = new Size(1080, 720); MinimumSize = new Size(900, 600);
             Font = new Font("Microsoft YaHei UI", 9F); AutoScaleMode = AutoScaleMode.Dpi; StartPosition = FormStartPosition.CenterParent;
             var header = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(10), FlowDirection = FlowDirection.TopDown, WrapContents = false };
             header.Controls.Add(_progress); header.Controls.Add(_instruction);
@@ -151,6 +153,7 @@ namespace SteamLoginLite
             if (!Current(generation, web) || args.Response.StatusCode < 200 || args.Response.StatusCode >= 300) return;
             string accountId; var kind = PubgPlusRequestMatcher.Classify(args.Request.Uri, expected, out accountId);
             if (kind == PubgPlusRequestKind.None) return;
+            Trace?.Invoke("Response " + kind + " generation " + generation + " " + args.Request.Uri);
             try
             {
                 string body;
@@ -175,10 +178,10 @@ namespace SteamLoginLite
                     if (basic != null && result == null) { Status("已读取账号状态，正在等待等级…"); _ = FallbackAsync(generation, web); }
                 }
                 else result = _batch.AddMastery(generation, _parser.ParseSurvivalMastery(body, accountId));
-                if (result != null) await AcceptAsync(result, generation, web);
+                if (result != null) { Trace?.Invoke("Result: " + result.GameId + " level=" + result.Level + " tier=" + result.Tier + " hasLevel=" + result.HasLevel + " status=" + result.Status); await AcceptAsync(result, generation, web); }
             }
             catch (OperationCanceledException) { }
-            catch (Exception) { if (Current(generation, web)) Status("查询响应读取失败，请点击重试或跳过。"); }
+            catch (Exception ex) { Trace?.Invoke("Response failure: " + ex.Message); if (Current(generation, web)) Status("查询响应读取失败，请点击重试或跳过。"); }
         }
         private async Task FallbackAsync(int generation, WebView2 web)
         {
@@ -187,7 +190,7 @@ namespace SteamLoginLite
                 await Task.Delay(8000, _closing.Token);
                 if (!Current(generation, web)) return;
                 var result = _batch.Fallback(generation);
-                if (result != null) await AcceptAsync(result, generation, web);
+                if (result != null) { Trace?.Invoke("Result: " + result.GameId + " level=" + result.Level + " tier=" + result.Tier + " hasLevel=" + result.HasLevel + " status=" + result.Status); await AcceptAsync(result, generation, web); }
             }
             catch (OperationCanceledException) { }
         }

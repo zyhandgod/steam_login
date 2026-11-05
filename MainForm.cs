@@ -45,10 +45,10 @@ namespace SteamLoginLite
         {
             _preview = preview;
             Text = "Steam Login Lite · " + typeof(MainForm).Assembly.GetName().Version.ToString(3);
-            ClientSize = new Size(1240, 700); MinimumSize = new Size(1060, 600);
+            ClientSize = new Size(1240, 700); MinimumSize = new Size(960, 600);
             AutoScaleMode = AutoScaleMode.Dpi; Font = new Font("Microsoft YaHei UI", 9F);
             StartPosition = FormStartPosition.CenterScreen;
-            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+            try { Icon = Icon.ExtractAssociatedIcon(typeof(MainForm).Assembly.Location); } catch { }
             BuildUi();
             if (_preview) { _data = Demo(); Render(); SetStatus("界面预览 · 示例数据，不访问真实账号。正式运行请使用 Windows 绿色包。"); }
             else Reload();
@@ -88,11 +88,12 @@ namespace SteamLoginLite
             _grid.BackgroundColor = SystemColors.Window; _grid.BorderStyle = BorderStyle.FixedSingle; _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             _grid.RowTemplate.Height = 32; _grid.ColumnHeadersHeight = 32; _grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
             _grid.DefaultCellStyle.WrapMode = DataGridViewTriState.False; _grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(223, 235, 252); _grid.DefaultCellStyle.SelectionForeColor = SystemColors.ControlText;
-            _grid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Select", HeaderText = "选", Width = 35, SortMode = DataGridViewColumnSortMode.NotSortable });
-            AddColumn("Username", "Steam 账号", 160); AddColumn("Source", "标记", 80); AddColumn("GameId", "游戏昵称 / 查询标识", 165);
-            AddColumn("Level", "生存等级", 120); AddColumn("Status", "账号状态", 90); AddColumn("Note", "备注", 155); AddColumn("Time", "最近查询", 115);
+            _grid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Select", HeaderText = "选", Width = 30, SortMode = DataGridViewColumnSortMode.NotSortable });
+            AddColumn("Username", "Steam 账号", 160); AddColumn("Source", "标记", 76); AddColumn("GameId", "游戏昵称 / 查询标识", 165);
+            AddColumn("Level", "生存等级", 110); AddColumn("Status", "账号状态", 85); AddColumn("Note", "备注", 155); AddColumn("Time", "最近查询", 100);
             foreach (var action in new[] { new[] { "Login", "登录" }, new[] { "Query", "查询" }, new[] { "Edit", "编辑" } })
-                _grid.Columns.Add(new DataGridViewButtonColumn { Name = action[0], HeaderText = "", Text = action[1], UseColumnTextForButtonValue = true, Width = 55, ReadOnly = true, SortMode = DataGridViewColumnSortMode.NotSortable });
+                _grid.Columns.Add(new DataGridViewButtonColumn { Name = action[0], HeaderText = "", Text = action[1], UseColumnTextForButtonValue = true, Width = 48, ReadOnly = true, SortMode = DataGridViewColumnSortMode.NotSortable });
+            foreach (var name in new[] { "Username", "GameId", "Note" }) { _grid.Columns[name].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; _grid.Columns[name].FillWeight = name == "Note" ? 140 : 150; _grid.Columns[name].MinimumWidth = name == "Note" ? 90 : 110; }
             _grid.CurrentCellDirtyStateChanged += (_, __) => { if (_grid.IsCurrentCellDirty) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
             _grid.CellValueChanged += (_, e) => {
                 if (_rendering || e.RowIndex < 0 || e.ColumnIndex != 0) return;

@@ -43,6 +43,8 @@ internal static class NativeSmoke
                     form.SmokeSearch(""); form.SmokeClearSelection(); Check(form.SelectionCount == 0 && form.Grid.Rows.Count == 20, "Clear selection and pagination reset");
                     using (var settings = new SettingsDialog(form.Data.Settings)) Check(settings.SmokePreferences.All(v => v), "Steam preferences preserved");
                     var note = form.Grid.GetCellDisplayRectangle(form.Grid.Columns["Note"].Index, 0, false);
+                    var editButton = form.Grid.GetCellDisplayRectangle(form.Grid.Columns["Edit"].Index, 0, false);
+                    Check(editButton.Width > 0 && editButton.Right <= form.Grid.ClientSize.Width, "All action buttons visible without scrolling");
                     Check(note.Width > 0 && note.Right <= form.Grid.ClientSize.Width, "Notes visible without horizontal scrolling");
                     var oldData = form.Data;
                     using (var editTimer = new Timer { Interval = 150 })
@@ -52,7 +54,7 @@ internal static class NativeSmoke
                             editTimer.Stop();
                             try {
                                 var replacement = new AppData { Settings = oldData.Settings, CurrentAccountId = oldData.CurrentAccountId,
-                                    Accounts = oldData.Accounts.Select(a => new AccountRecord { Id = a.Id, Username = a.Username, GameId = a.GameId, Note = a.Note, Status = a.Status, Level = a.Level, Tier = a.Tier, IsLocalAccount = a.IsLocalAccount, CanUseSavedLogin = a.CanUseSavedLogin }).ToList() };
+                                    Accounts = oldData.Accounts.Select(a => new AccountRecord { Id = a.Id, Username = a.Username, GameId = a.GameId, Note = a.Note, Status = a.Status, Level = a.Level, Tier = a.Tier, LastQueryAt = a.LastQueryAt, LastLoginAt = a.LastLoginAt, IsLocalAccount = a.IsLocalAccount, CanUseSavedLogin = a.CanUseSavedLogin }).ToList() };
                                 form.SmokeReplaceData(replacement);
                                 var layout = editor.Controls.OfType<TableLayoutPanel>().Single();
                                 ((TextBox)layout.GetControlFromPosition(1, 5)).Text = "已保存备注";
@@ -92,12 +94,13 @@ internal static class NativeSmoke
         var accounts = new[] { new QueryAccount("first", "fixture_same"), new QueryAccount("second", "fixture_same"), new QueryAccount("skip", "fixture_skip") };
         var streams = new List<MemoryStream>(); var saved = new List<string>(); var requests = new List<string>(); var completed = false; var timedOut = false;
         using (var dialog = new PubgPlusQueryForm(accounts, 500, core => {
+            core.WebMessageReceived += (_, e) => Console.WriteLine("Fixture page: " + e.WebMessageAsJson);
             core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
             core.WebResourceRequested += (_, e) => {
                 var uri = new Uri(e.Request.Uri); string body; string type;
                 if (uri.Host == "pubg.plus") {
                     type = "text/html; charset=utf-8";
-                    body = "<!doctype html><html><meta charset='utf-8'><body><div class='search-input'><input placeholder='玩家昵称'></div><button disabled>查询</button><script>const b=document.querySelector('button');setTimeout(()=>b.disabled=false,200);b.onclick=async()=>{const n=document.querySelector('input').value;const basic=await fetch('https://apiv1.pubg.plus/steam/player/basic?player_id='+encodeURIComponent(n));const r=await basic.json();await fetch('https://apiv1.pubg.plus/steam/player/survival_mastery?acc_id='+r.data.id)};</script></body></html>";
+                    body = "<!doctype html><html><meta charset='utf-8'><body><div class='search-input'><input placeholder='玩家昵称'></div><button disabled>查询</button><script>const b=document.querySelector('button');setTimeout(()=>b.disabled=false,200);window.addEventListener('unhandledrejection',e=>chrome.webview.postMessage(String(e.reason)));b.onclick=async()=>{const n=document.querySelector('input').value;const basic=await fetch('https://apiv1.pubg.plus/steam/player/basic?player_id='+encodeURIComponent(n));const r=await basic.json();await (await fetch('https://apiv1.pubg.plus/steam/player/survival_mastery?acc_id='+r.data.id)).json()};</script></body></html>";
                 } else if (uri.Host == "apiv1.pubg.plus") {
                     type = "application/json"; requests.Add(uri.AbsolutePath);
                     if (uri.AbsolutePath.EndsWith("/basic")) {
@@ -110,7 +113,9 @@ internal static class NativeSmoke
             };
         }))
         {
+            dialog.Trace += Console.WriteLine;
             dialog.ResultReceived += (task, result) => {
+                Console.WriteLine("Save fixture: " + result.GameId + " level=" + result.Level + " tier=" + result.Tier + " hasLevel=" + result.HasLevel + " status=" + result.Status);
                 Check(task.Id == (saved.Count == 0 ? "first" : "second"), "Same nickname tasks preserve distinct account IDs");
                 Check(result.GameId == "fixture_same" && result.HasLevel && result.Level == 77 && result.Tier == 2 && result.Status == "正常", "Trusted basic/mastery response merges correctly");
                 saved.Add(task.Id);
