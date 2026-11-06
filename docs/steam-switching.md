@@ -79,3 +79,11 @@ dotnet build SteamLoginLite.csproj -c Release
 - Windows 引号和反斜杠参数转义、注册表字段，以及现有不抢焦点和游戏库一次打开的约束。
 
 新增 Windows 回归位于 `tests/SteamSession` 和 `tests/NativeSmoke`，使用隔离夹具或状态注入验证边界。这些命令是验证入口，不构成 CI 或真实账号登录结果。真实本机登录、过期凭据、Steam Guard 及远程查询验证码仍需在 Windows 实机验收。
+
+## 3.0.3 验证记录
+
+2026-11-06，Windows [CI 42153762394](https://github.com/zyhandgod/steam_login/actions/runs/42153762394) 在源码 `a79f2f9e4ec4016e3200f55297c5ac20f8a2eabe` 上全部通过：账号与配置兼容、隔离注册表、Windows 参数解析、取消处理、原生进度/时间/迟到回调/重命名/焦点回归、查询夹具、安装器签名及绿色包检查。
+
+构建产物 `SteamLoginLite-3.0.3-win-x64.zip` 共 6 个文件，ZIP 486,945 字节，解压 1,122,403 字节。下载后已复核 ZIP 完整性、文件清单及版本说明；SHA-256 为 `0fea3c7d22411905b476fa28fab42640c72c7d9265ec378c39b4f3a74fcc17bc`。原生界面截图已检查，账号资料不包含真实用户数据。
+
+CI 没有进行真实 Steam 账号登录或 Steam Guard 验证；这些仍需 Windows 本机验收。
