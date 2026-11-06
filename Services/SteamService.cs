@@ -274,8 +274,8 @@ namespace SteamLoginLite.Services
                 var deadline = DateTime.UtcNow.AddSeconds(180);
                 DateTime? readyAt = null;
                 var authenticated = false;
-                var nextLibraryAttempt = DateTime.MinValue;
-                var libraryAttempts = 0;
+                var libraryOpened = false;
+                var libraryAttempted = false;
                 while (DateTime.UtcNow < deadline && !token.IsCancellationRequested)
                 {
                     // Window preferences apply to this Steam client, independently
@@ -292,23 +292,24 @@ namespace SteamLoginLite.Services
                             : PreferenceApplyState.Pending;
                         // A new account's config may arrive late. It must not block
                         // opening the library or closing the initial popup windows.
-                            if (settings.OpenLibrary && libraryAttempts < 3 && DateTime.UtcNow >= nextLibraryAttempt)
+                            if (settings.OpenLibrary && !libraryAttempted)
                             {
+                                libraryAttempted = true;
                                 try
                                 {
                                     Process.Start(new ProcessStartInfo { FileName = steamPath, Arguments = "steam://open/library", WorkingDirectory = Path.GetDirectoryName(steamPath), UseShellExecute = false });
-                                    libraryAttempts++; nextLibraryAttempt = DateTime.UtcNow.AddSeconds(5);
+                                    libraryOpened = true;
                                 }
                                 catch (Exception ex) { LogPreferenceWarning(ex); }
                             }
                             // Watch config changes through Steam's initial cloud/config refresh.
                             if (DateTime.UtcNow - readyAt.Value >= TimeSpan.FromSeconds(30))
                             {
-                                var successful = !settings.OpenLibrary || libraryAttempts > 0;
+                                var successful = !settings.OpenLibrary || libraryOpened;
                                 Report(successful ? "completed" : "failed", successful
                                     ? (state == PreferenceApplyState.Applied ? "登录偏好已保存，Steam 窗口处理已结束。" : "Steam 窗口处理已结束；账号配置尚未就绪，未修改其他账号配置。")
                                     : "已尝试处理 Steam 窗口，但部分配置或游戏库操作未完成，请查看 steam-service.log。");
-                                if (!successful) LogPreferenceWarning(new InvalidOperationException("登录后处理：配置状态=" + state + "，游戏库启动次数=" + libraryAttempts));
+                                if (!successful) LogPreferenceWarning(new InvalidOperationException("登录后处理：配置状态=" + state + "，游戏库启动次数=" + (libraryOpened ? 1 : 0)));
                                 return;
                             }
                     }

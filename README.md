@@ -1,10 +1,10 @@
-# Steam Login Lite 3.0.1 · 轻量原生版
+# Steam Login Lite 3.0.2 · 轻量原生版
 
 使用 Windows 原生 WinForms（.NET Framework 4.8），查询使用系统 WebView2。没有 Electron、React、Ant Design、Node.js、内置 Chromium、在线更新或托盘常驻。
 
 ## 使用
 
-下载 `SteamLoginLite-3.0.1-win-x64.zip`，完整解压后双击 `SteamLoginLite.exe`。绿色包仅 6 个文件，需放在一起，无需安装本工具或 Node.js。
+下载 `SteamLoginLite-3.0.2-win-x64.zip`，完整解压后双击 `SteamLoginLite.exe`。绿色包仅 6 个文件，需放在一起，无需安装本工具或 Node.js。
 
 Windows 10/11 x64，需 .NET Framework 4.8（最新 Windows 通常已有）。首次查询如果没有 WebView2 Evergreen Runtime，工具会从 Microsoft 官方地址下载、验证安装器签名并安装，再继续当前查询；已有运行时时不重复安装。安装失败可点击查询窗口“重试”，或在偏好设置中检测/安装。WebView2 是单独安装的系统共享浏览器组件，占用系统磁盘，不放在绿色包中。安装可能需要网络及 Windows 授权。
 
@@ -25,7 +25,7 @@ Windows 10/11 x64，需 .NET Framework 4.8（最新 Windows 通常已有）。�
 
 ## 数据与换版
 
-账号数据始终在 `%LOCALAPPDATA%\SteamLoginLite\accounts.json`。3.0.1 直接读取 2.x 及原生旧版的原有数据；删除程序目录、重新解压新 ZIP 不删除账号。同一 Windows 用户下密码继续可用，换电脑或用户需要重新填写。数据仍通过临时文件原子保存并保留 `.bak`；首次运行的旧目录迁移仍保留。读取失败时禁止覆盖原数据。
+账号数据始终在 `%LOCALAPPDATA%\SteamLoginLite\accounts.json`。3.0.2 直接读取 2.x 及原生旧版的原有数据；删除程序目录、重新解压新 ZIP 不删除账号。同一 Windows 用户下密码继续可用，换电脑或用户需要重新填写。数据仍通过临时文件原子保存并保留 `.bak`；首次运行的旧目录迁移仍保留。读取失败时禁止覆盖原数据。
 
 换版前关闭旧程序，建议备份 `%LOCALAPPDATA%\SteamLoginLite`，再运行新目录内 EXE。WebView2 查询缓存位于该用户目录下的 `WebView2` 子目录，偏好设置可单独清理缓存，不删除账号。首次安装器临时下载在 `installer` 子目录，安装后清理。
 
@@ -38,7 +38,7 @@ dotnet build SteamLoginLite.csproj -c Release
 ./scripts/build.ps1
 ```
 
-3.0.1 ZIP 不到 0.5 MiB，解压约 1.06 MiB（不包括单独安装的 WebView2 运行时及用户查询缓存）。
+3.0.2 ZIP 不到 0.5 MiB，解压约 1.06 MiB（不包括单独安装的 WebView2 运行时及用户查询缓存）。
 
 正式包严格只包含 EXE、配置、三个 WebView2 接口/加载 DLL 和使用说明。构建脚本核对 6 个文件且解压大小不超过 5 MB；不打包浏览器、源码或缓存。
 
@@ -55,3 +55,7 @@ dotnet run --project tests/NativeSmoke/NativeSmoke.csproj -c Release -- --query
 Windows CI 运行原生界面及真实 WebView2 夹具，不提交真实玩家查询、不读取真实账号。`--preview` 启动隔离示例界面；WinForms 正式运行及预览只支持 Windows，macOS 可编译检查和运行纯逻辑测试。旧 Electron 实现在历史标签 v2.1.8 中保留。
 
 自动测试不能代替真实 Steam 登录、远程网站及验证码验收。迁移功能清单见 [原生迁移说明](docs/native-migration.md)。
+
+### 3.0.2 交互修复
+
+当前活动账号每 3 秒同步并整行高亮，选中后仍保留高亮。重复添加可确认后搜索定位已有记录，无需重复输入密码。登录后打开游戏库只发送一次；状态同步不激活或置顶窗口。

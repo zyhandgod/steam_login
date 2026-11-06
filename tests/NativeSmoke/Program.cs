@@ -37,6 +37,29 @@ internal static class NativeSmoke
                     Check(Convert.ToString(form.Grid.Rows[0].Cells["Source"].Value).Contains("当前"), "Verified current marker");
                     Check(Convert.ToString(form.Grid.Rows[1].Cells["Source"].Value).Contains("本机"), "Local source marker");
                     Check(Convert.ToString(form.Grid.Rows[1].Cells["Note"].Value) == "", "Empty note has no fallback");
+                    var currentId = form.Data.CurrentAccountId;
+                    var nextAccount = form.Data.Accounts[27];
+                    using (var other = new Form { Text = "Foreground regression fixture" }) {
+                        other.Show(); other.Activate(); Application.DoEvents();
+                        form.ApplyCurrentSession(nextAccount.Id); Application.DoEvents();
+                        Check(Form.ActiveForm == other && !form.TopMost, "Session refresh must not steal foreground or set topmost");
+                        var activeRow = form.Grid.Rows.Cast<DataGridViewRow>().Single(r => (r.Tag as AccountRecord)?.Id == nextAccount.Id);
+                        Check(Convert.ToString(activeRow.Cells["Source"].Value).Contains("当前"), "Later login changes current marker without manual refresh");
+                        Check(activeRow.DefaultCellStyle.BackColor != Color.Empty && activeRow.DefaultCellStyle.SelectionBackColor != Color.Empty, "Current row stays highlighted even when selected");
+                        other.Close();
+                    }
+                    form.ApplyCurrentSession("");
+                    Check(form.Grid.Rows.Cast<DataGridViewRow>().All(r => !Convert.ToString(r.Cells["Source"].Value).Contains("当前")), "Logout clears marker");
+                    form.ApplyCurrentSession(currentId);
+                    form.SmokeNextPage(); form.SmokeSearch("no-match");
+                    form.LocateAccount(nextAccount);
+                    Check((form.Grid.CurrentRow.Tag as AccountRecord)?.Id == nextAccount.Id, "Locate existing account clears old search and reveals off-page record");
+                    using (var duplicateEditor = new AccountEditDialog(new AccountRecord { Username = nextAccount.Username }, true, name => name == nextAccount.Username)) {
+                        duplicateEditor.Show(form); duplicateEditor.AcceptButton.PerformClick();
+                        Check(duplicateEditor.DialogResult == DialogResult.OK, "Existing username reaches duplicate lookup without entering a password");
+                        duplicateEditor.Close();
+                    }
+                    form.SmokeSearch("");
                     form.SmokeSelectAll(); Check(form.SelectionCount == 28, "Select all filtered records across pages");
                     form.SmokeNextPage(); Check(form.Grid.Rows.Count == 8 && form.Grid.Rows.Cast<DataGridViewRow>().All(r => Convert.ToBoolean(r.Cells[0].Value)), "Second page retains selection");
                     form.SmokeSearch("PUBG_Player_28"); Check(form.Grid.Rows.Count == 1 && form.FilteredCount == 1, "Nickname search resets page");

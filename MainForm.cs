@@ -14,6 +14,7 @@ namespace SteamLoginLite
 {
     public sealed class MainForm : Form
     {
+        private readonly System.Windows.Forms.Timer _sessionTimer = new System.Windows.Forms.Timer { Interval = 3000 };
         private readonly DataStore _store = new DataStore();
         private SteamService _steam;
         private Action<string, string> _steamHandler;
@@ -52,8 +53,10 @@ namespace SteamLoginLite
             BuildUi();
             if (_preview) { _data = Demo(); Render(); SetStatus("界面预览 · 示例数据，不访问真实账号。正式运行请使用 Windows 绿色包。"); }
             else Reload();
-            FormClosing += (_, __) => _login.Cancel();
-            FormClosed += (_, __) => { if (_steam != null) _steam.PostLoginStatus -= _steamHandler; _login.Dispose(); };
+            _sessionTimer.Tick += (_, __) => RefreshCurrentSession();
+            if (!_preview) _sessionTimer.Start();
+            FormClosing += (_, __) => { _sessionTimer.Stop(); _login.Cancel(); };
+            FormClosed += (_, __) => { if (_steam != null) _steam.PostLoginStatus -= _steamHandler; _login.Dispose(); _sessionTimer.Dispose(); };
         }
         private static FlowLayoutPanel Flow() => new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Padding = new Padding(0, 2, 0, 2) };
         private Button Button(string text, Action action, bool mutation = true)
@@ -157,7 +160,11 @@ namespace SteamLoginLite
                     var row = _grid.Rows[index]; row.Tag = account;
                     row.Cells["Source"].ToolTipText = account.IsLocalAccount ? (account.CanUseSavedLogin ? "本机记录，可尝试使用 Steam 已记住的登录状态" : "本机记录，需补充密码或在 Steam 登录") : "工具保存的账号";
                     row.Cells["Note"].ToolTipText = account.Note; row.Cells["GameId"].ToolTipText = account.EffectiveGameId;
-                    if (account.Id == _data.CurrentAccountId) row.DefaultCellStyle.BackColor = Color.FromArgb(235, 248, 239);
+                    if (account.Id == _data.CurrentAccountId) {
+                        row.DefaultCellStyle.BackColor = Color.FromArgb(218, 242, 225);
+                        row.DefaultCellStyle.SelectionBackColor = Color.FromArgb(193, 228, 205);
+                        row.Cells["Source"].Style.ForeColor = Color.DarkGreen;
+                    }
                     row.Cells["Status"].Style.ForeColor = account.Status == "正常" ? Color.DarkGreen : account.Status == "永久封禁" ? Color.Firebrick : account.Status == "临时封禁" ? Color.DarkGoldenrod : SystemColors.GrayText;
                 }
                 foreach (DataGridViewColumn column in _grid.Columns) if (column.SortMode == DataGridViewColumnSortMode.Programmatic)
@@ -199,16 +206,51 @@ namespace SteamLoginLite
         private void Edit(AccountRecord account)
         {
             var isNew = account == null; account = account ?? new AccountRecord();
-            using (var dialog = new AccountEditDialog(account, isNew))
+            using (var dialog = new AccountEditDialog(account, isNew, name => _data.Accounts.Any(a => a.Id != account.Id && a.Username.Equals(name, StringComparison.OrdinalIgnoreCase))))
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
                 if (!isNew) account = _data.Accounts.SingleOrDefault(a => a.Id == account.Id) ?? throw new InvalidOperationException("账号记录已变化，请重新打开编辑。");
-                if (_data.Accounts.Any(a => a.Id != account.Id && a.Username.Equals(dialog.Username, StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException("账号已存在。");
+                var duplicate = _data.Accounts.FirstOrDefault(a => a.Id != account.Id && a.Username.Equals(dialog.Username, StringComparison.OrdinalIgnoreCase));
+                if (duplicate != null) {
+                    if (MessageBox.Show(this, "账号“" + duplicate.Username + "”已添加，是否搜索并定位到这个账号？", "账号已存在", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                        LocateAccount(duplicate);
+                    return;
+                }
                 account.Username = dialog.Username; account.Email = dialog.Email; account.GameId = dialog.GameId; account.Note = dialog.Note;
                 if (dialog.Password.Length > 0) account.EncryptedPassword = DataStore.Encrypt(dialog.Password);
                 if (dialog.EmailPassword.Length > 0) account.EncryptedEmailPassword = DataStore.Encrypt(dialog.EmailPassword);
                 if (isNew) _data.Accounts.Add(account); SteamAccountSync.RestoreName(_data, account.Username); Save(); if (_preview) Render(); else Reload(); SetStatus("账号已保存。");
             }
+        }
+        private void RefreshCurrentSession()
+        {
+            if (_preview || _readOnly || _data == null || IsDisposed) return;
+            try {
+                var local = SteamLocalAccounts.Read(_data.Settings.SteamPath);
+                var active = SteamService.FindActiveAccountName(_data.Settings.SteamPath, local);
+                var currentId = _data.Accounts.FirstOrDefault(a => a.Username.Equals(active, StringComparison.OrdinalIgnoreCase))?.Id ?? "";
+                ApplyCurrentSession(currentId);
+            } catch { /* A changing Steam file is retried on the next tick. */ }
+        }
+        internal void ApplyCurrentSession(string currentId)
+        {
+            if (_data.CurrentAccountId == currentId) return;
+            _data.CurrentAccountId = currentId;
+            Render();
+        }
+        internal void LocateAccount(AccountRecord account)
+        {
+            _filter.SelectedIndex = 0;
+            _search.Text = account.Username;
+            var matches = Filtered();
+            _page = Math.Max(1, matches.FindIndex(a => a.Id == account.Id) / PageSize + 1);
+            Render();
+            foreach (DataGridViewRow row in _grid.Rows) {
+                if ((row.Tag as AccountRecord)?.Id != account.Id) continue;
+                _grid.CurrentCell = row.Cells["Username"]; row.Selected = true;
+                _grid.FirstDisplayedScrollingRowIndex = row.Index; break;
+            }
+            SetStatus("已定位账号：" + account.Username);
         }
         private void Delete(List<AccountRecord> accounts)
         {

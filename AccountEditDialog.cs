@@ -19,7 +19,7 @@ namespace SteamLoginLite
         public string EmailPassword => _emailPassword.Text;
         public string GameId => _gameId.Text.Trim();
         public string Note => _note.Text.Trim();
-        public AccountEditDialog(AccountRecord account, bool isNew = false)
+        public AccountEditDialog(AccountRecord account, bool isNew = false, Func<string, bool> accountExists = null)
         {
             Text = isNew ? "添加账号" : "编辑账号";
             ClientSize = new Size(465, 365); AutoScaleMode = AutoScaleMode.Dpi;
@@ -38,7 +38,7 @@ namespace SteamLoginLite
             var save = new Button { Text = "保存", DialogResult = DialogResult.OK, AutoSize = true };
             var cancel = new Button { Text = "取消", DialogResult = DialogResult.Cancel, AutoSize = true };
             save.Click += (_, __) => {
-                if (Username.Length == 0 || (isNew && Password.Length == 0))
+                if (Username.Length == 0 || (isNew && Password.Length == 0 && !(accountExists?.Invoke(Username) ?? false)))
                 { MessageBox.Show(this, Username.Length == 0 ? "请输入 Steam 账号。" : "请输入密码；本机已有的账号可先刷新自动同步。", "提示"); DialogResult = DialogResult.None; }
             };
             buttons.Controls.Add(save); buttons.Controls.Add(cancel); layout.Controls.Add(buttons, 0, 7); layout.SetColumnSpan(buttons, 2);
