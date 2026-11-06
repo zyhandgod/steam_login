@@ -1,5 +1,7 @@
 # 原生轻量版迁移
 
+> 最后更新：2026-11-06 | 版本：3.0.3
+
 目标：用 .NET Framework 4.8 WinForms + 系统 WebView2 Evergreen 取代 Electron/React/Ant Design。正式 ZIP 仅包含本机程序、WebView2 接口库和说明，不携带 Chromium 或 Node 依赖。首次查询若无 WebView2，下载并校验 Microsoft 官方安装器，安装后继续同一查询。
 
 验收功能：
@@ -19,8 +21,16 @@
 
 验证边界：不把夹具测试声称为真实 Steam 登录或远程网站验证码验收。WebView2 是系统单独安装的共享运行时，不包含在绿色包中；.NET Framework 4.8 为运行前提。
 
-Windows 验证：[CI 41958039417](https://github.com/zyhandgod/steam_login/actions/runs/41958039417)，源代码 `354c0e9`。界面、编辑快照竞态、真实 WebView2 夹具、Microsoft 安装器签名和六文件 ZIP 验证均通过。包解压总计 1,115,138 字节；不包含浏览器运行时。
+原生迁移阶段的历史 Windows 验证：[CI 41958039417](https://github.com/zyhandgod/steam_login/actions/runs/41958039417)，源代码 `354c0e9`。当时界面、编辑快照竞态、真实 WebView2 夹具、Microsoft 安装器签名和六文件 ZIP 验证均通过。该记录不代表 3.0.3 的验证结果。
 
 ## 3.0.2 当前账号与窗口行为
 
 主界面通过 3 秒定时读取 Steam 活动会话更新当前账号，保持 PID/路径及 ActiveUser 校验，不使用最近登录记录冒充在线状态。只有状态变化才重绘，不写入账号文件、不激活窗口。当前行普通与选中状态均有绿色背景。添加重复账号时可搜索定位（清除状态筛选、重设页码），不覆盖已有数据，已有账号无需再次填密码即可进入定位提示。登录后游戏库 URI 每次登录最多发送一次，避免 5 秒间隔重复激活 Steam；配置稳定性及关闭弹窗观察继续保留。
+
+## 3.0.3 Steam 切号与登录状态
+
+切号兼容 WattToolkit 使用的新 `AutoLogin` 与旧选择字段，补齐 HKCU 记住密码开关及已有账号选择器设置；保留逐文件备份、原子替换、编码和并发变化检查。符合资格的本机账号依据 `RememberPassword` 判断是否可尝试，未被选中自动登录不会阻止切换；实际成功仍通过 PID、路径及 ActiveUser 确认。
+
+底部原生 Marquee 进度条显示退出、准备、启动和等待验证阶段，确认、失败、取消或超时后结束对应进度。`LastLoginAt` 由目标会话确认事件更新，启动 Steam 本身不记作登录成功。游戏库一次打开、当前账号高亮、已登录会话复用、密码后备及 DPAPI 保持。
+
+进程停止仍沿用 `CloseMainWindow → 等待 900ms → 必要时 Kill → 等待退出`，没有改为 Steam `-shutdown` 流程，也没有引入 Steam SDK、其他界面框架或离线模式界面。底层配置、保留差异及测试命令见 [Steam 切号实现](steam-switching.md)。

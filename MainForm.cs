@@ -30,6 +30,7 @@ namespace SteamLoginLite
         private readonly Label _selection = new Label { AutoSize = true, Margin = new Padding(8, 6, 8, 0) };
         private readonly Label _pages = new Label { AutoSize = true, Margin = new Padding(8, 6, 8, 0) };
         private readonly ToolStripStatusLabel _status = new ToolStripStatusLabel { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
+        private readonly ToolStripProgressBar _loginProgress = new ToolStripProgressBar { Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 25, Width = 100, Visible = false };
         private readonly DataGridView _grid = new DataGridView();
         private readonly List<Control> _mutations = new List<Control>();
         private CancellationTokenSource _login = new CancellationTokenSource();
@@ -41,6 +42,7 @@ namespace SteamLoginLite
         internal DataGridView Grid => _grid;
         internal int SelectionCount => _selected.Count;
         internal int FilteredCount => Filtered().Count;
+        internal bool LoginInProgress => _loginProgress.Visible;
 
         public MainForm(bool preview = false)
         {
@@ -126,7 +128,7 @@ namespace SteamLoginLite
             paging.Controls.Add(new Label { Text = "条 / 页", AutoSize = true, Margin = new Padding(3, 6, 0, 0) });
             _pageSize.SelectedIndexChanged += (_, __) => { _page = 1; Render(); };
             root.Controls.Add(tools, 0, 0); root.Controls.Add(filters, 0, 1); root.Controls.Add(selection, 0, 2); root.Controls.Add(_grid, 0, 3); root.Controls.Add(paging, 0, 4);
-            var status = new StatusStrip(); status.Items.Add(_status); Controls.Add(root); Controls.Add(status);
+            var status = new StatusStrip(); status.Items.Add(_status); status.Items.Add(_loginProgress); Controls.Add(root); Controls.Add(status);
         }
         private void AddColumn(string name, string title, int width) => _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = name, HeaderText = title, Width = width, ReadOnly = true, SortMode = name == "Username" || name == "Level" || name == "Time" ? DataGridViewColumnSortMode.Programmatic : DataGridViewColumnSortMode.NotSortable });
         private int PageSize => _pageSize.SelectedItem is int value ? value : 20;
@@ -284,13 +286,15 @@ namespace SteamLoginLite
         private async Task LoginAsync(AccountRecord account)
         {
             if (_preview) { SetStatus("示例账号不能登录。"); return; }
+            if (_busy) return;
             var same = account.Id == _data.CurrentAccountId;
             var text = same ? "尝试沿用当前会话；本机状态变化时可能重新切换。" : "切换会退出 Steam 和正在运行的 PUBG，请先保存游戏进度。可能需要手动完成 Steam 验证。";
             if (MessageBox.Show(this, text, same ? "继续使用 " + account.Username : "切换到 " + account.Username, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
             _busy = true; SetEnabled(); _login.Cancel(); _login.Dispose(); _login = new CancellationTokenSource();
             if (_steam != null) _steam.PostLoginStatus -= _steamHandler;
             var generation = ++_loginGeneration; _steam = new SteamService();
-            _steamHandler = (state, message) => OnSteamStatus(generation, state, message); _steam.PostLoginStatus += _steamHandler;
+            var accountId = account.Id; var username = account.Username;
+            _steamHandler = (state, message) => OnSteamStatus(generation, accountId, username, state, message); _steam.PostLoginStatus += _steamHandler;
             try
             {
                 try {
@@ -307,17 +311,36 @@ namespace SteamLoginLite
                     await _steam.LaunchAsync(_data.Settings.SteamPath, account.Username, password, _data.Settings, _login.Token);
                 }
                 if (IsDisposed || _login.IsCancellationRequested) return;
-                account.LastLoginAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
                 _data.CurrentAccountId = SteamService.IsTargetSessionReady(_data.Settings.SteamPath, account.Username) ? account.Id : ""; Save(); Render();
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { if (!IsDisposed) { SetStatus(ex.Message); MessageBox.Show(this, ex.Message, "登录未完成", MessageBoxButtons.OK, MessageBoxIcon.Warning); } }
+            catch (OperationCanceledException) { if (!IsDisposed) ApplySteamStatus(generation, accountId, username, "canceled", "登录处理已停止。"); }
+            catch (Exception ex) { if (!IsDisposed) { ApplySteamStatus(generation, accountId, username, "failed", ex.Message); MessageBox.Show(this, ex.Message, "登录未完成", MessageBoxButtons.OK, MessageBoxIcon.Warning); } }
             finally { if (!IsDisposed) { _busy = false; SetEnabled(); } }
         }
-        private void OnSteamStatus(int generation, string state, string message)
+        private void OnSteamStatus(int generation, string accountId, string username, string state, string message)
         {
             if (generation != _loginGeneration || IsDisposed || !IsHandleCreated) return;
-            try { BeginInvoke(new Action(() => { if (generation != _loginGeneration || IsDisposed) return; if ((state == "authenticated" || state == "completed") && !_busy) Reload(); if (!_readOnly) SetStatus(message); })); } catch { }
+            try { BeginInvoke(new Action(() => ApplySteamStatus(generation, accountId, username, state, message))); } catch { }
+        }
+        internal void ApplySteamStatus(int generation, string accountId, string username, string state, string message)
+        {
+            if (generation != _loginGeneration || IsDisposed) return;
+            _loginProgress.Visible = state == "stopping" || state == "preparing" || state == "starting" || state == "waiting" || state == "applying";
+            if (_readOnly) return;
+            if (state == "authenticated")
+            {
+                var account = _data.Accounts.FirstOrDefault(a => a.Id == accountId && a.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+                if (account != null)
+                {
+                    account.LastLoginAt = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                    _data.CurrentAccountId = account.Id;
+                    try { Save(); }
+                    catch (Exception ex) { SetStatus("Steam 会话已确认，但登录时间保存失败：" + ex.Message); Render(); return; }
+                    Render();
+                }
+            }
+            if ((state == "authenticated" || state == "completed") && !_busy && !_preview) Reload();
+            SetStatus(message);
         }
         private void Query(List<AccountRecord> accounts)
         {

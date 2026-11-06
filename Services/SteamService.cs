@@ -95,13 +95,17 @@ namespace SteamLoginLite.Services
         public async Task LaunchAsync(string steamPath, string username, string password, AppSettings settings, CancellationToken token)
         {
             if (!File.Exists(steamPath)) throw new FileNotFoundException("找不到 Steam，请在设置中选择 steam.exe。", steamPath);
+            token.ThrowIfCancellationRequested();
+            Report("stopping", "正在退出 Steam，准备登录 " + username + "…");
             await StopSteamAsync(token);
             await Task.Delay(1200, token);
             TryApplyLoginPreferences(steamPath, username, settings, false);
+            token.ThrowIfCancellationRequested();
+            Report("starting", "正在启动 Steam，登录 " + username + "…");
             Process.Start(new ProcessStartInfo
             {
                 FileName = steamPath,
-                Arguments = "-noreactlogin -login " + Quote(username) + " " + Quote(password),
+                Arguments = "-noreactlogin -login " + QuoteArgument(username) + " " + QuoteArgument(password),
                 WorkingDirectory = Path.GetDirectoryName(steamPath),
                 UseShellExecute = false
             });
@@ -111,21 +115,34 @@ namespace SteamLoginLite.Services
         public async Task LaunchRememberedAsync(string steamPath, string username, AppSettings settings, CancellationToken token)
         {
             if (!File.Exists(steamPath)) throw new FileNotFoundException("找不到 Steam，请在设置中选择 steam.exe。", steamPath);
+            token.ThrowIfCancellationRequested();
             if (!IsTargetSessionReady(steamPath, username))
             {
                 // Validate before stopping the running client; re-read after shutdown.
                 var target = SteamLocalAccounts.Read(steamPath).Find(a => a.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
                 if (target == null || !target.CanUseSavedLogin)
                     throw new InvalidOperationException("本机登录记录不可用，请先在 Steam 登录并勾选记住我，或编辑账号补充密码。");
+                Report("stopping", "正在退出 Steam，准备切换到 " + username + "…");
                 await StopSteamAsync(token);
                 await Task.Delay(1200, token);
+                Report("preparing", "正在设置目标 Steam 账号：" + username + "…");
                 SteamLocalAccounts.PrepareLogin(steamPath, username);
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Valve\Steam"))
-                    key.SetValue("AutoLoginUser", username, RegistryValueKind.String);
+                    SetAutoLoginUser(key, username);
                 TryApplyLoginPreferences(steamPath, username, settings, false);
+                token.ThrowIfCancellationRequested();
+                Report("starting", "正在启动 Steam，切换到 " + username + "…");
                 Process.Start(new ProcessStartInfo { FileName = steamPath, WorkingDirectory = Path.GetDirectoryName(steamPath), UseShellExecute = false });
             }
             PostLoginCompletion = RunPostLoginActionsAsync(steamPath, username, settings, token);
+        }
+
+        internal static void SetAutoLoginUser(RegistryKey key, string username)
+        {
+            if (key == null) throw new InvalidOperationException("无法打开 Steam 登录设置。");
+            key.SetValue("AutoLoginUser", username, RegistryValueKind.String);
+            key.SetValue("AutoLoginUser_steamchina", username, RegistryValueKind.String);
+            key.SetValue("RememberPassword", 1, RegistryValueKind.DWord);
         }
 
         public static string FindActiveAccountName(string steamPath, System.Collections.Generic.List<SteamLocalAccount> accounts)
@@ -269,7 +286,7 @@ namespace SteamLoginLite.Services
         {
             try
             {
-                Report("waiting", "Steam 已启动，正在等待账号登录和配置就绪；请先完成 Steam 验证。");
+                Report("waiting", "正在等待 " + username + " 的 Steam 登录；如出现验证，请在 Steam 中完成。");
                 await Task.Delay(Math.Max(2, settings.StartupDelaySeconds) * 1000, token);
                 var deadline = DateTime.UtcNow.AddSeconds(180);
                 DateTime? readyAt = null;
@@ -286,7 +303,7 @@ namespace SteamLoginLite.Services
                         if (!readyAt.HasValue) { readyAt = DateTime.UtcNow; Report("applying", "Steam 活动会话已就绪，正在处理窗口…"); }
                         // Only account-specific file writes require verified identity.
                         var targetReady = IsTargetSessionReady(steamPath, username);
-                        if (targetReady && !authenticated) { authenticated = true; Report("authenticated", "已确认目标 Steam 账号在线。"); }
+                        if (targetReady && !authenticated) { authenticated = true; Report("authenticated", "已确认目标 Steam 会话：" + username + "。"); }
                         var state = targetReady
                             ? TryApplyLoginPreferences(steamPath, username, settings, true, ActiveAccountId())
                             : PreferenceApplyState.Pending;
@@ -315,7 +332,7 @@ namespace SteamLoginLite.Services
                     }
                     await Task.Delay(1000, token);
                 }
-                Report("timeout", "等待 Steam 登录超时。请完成登录后重新切换；已有账号和查询数据不会受影响。");
+                Report("timeout", "等待 " + username + " 登录超时。请在 Steam 完成验证；登录状态失效时，请在 Steam 重新登录并勾选“记住我”后重试。");
             }
             catch (OperationCanceledException) { Report("canceled", "登录后处理已停止。"); }
             catch (Exception ex) { LogPreferenceWarning(ex); Report("failed", "登录后处理失败，请查看 steam-service.log。"); }
@@ -387,7 +404,22 @@ namespace SteamLoginLite.Services
             return builder.ToString();
         }
 
-        private static string Quote(string value) => "\"" + (value ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        internal static string QuoteArgument(string value)
+        {
+            // Windows argv escaping: backslashes are doubled only before a quote
+            // or the closing delimiter, not in the middle of a password.
+            var result = new StringBuilder("\"");
+            var slashes = 0;
+            foreach (var character in value ?? "")
+            {
+                if (character == '\\') { slashes++; continue; }
+                result.Append('\\', character == '"' ? slashes * 2 + 1 : slashes);
+                result.Append(character);
+                slashes = 0;
+            }
+            result.Append('\\', slashes * 2);
+            return result.Append('"').ToString();
+        }
 
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
         [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);

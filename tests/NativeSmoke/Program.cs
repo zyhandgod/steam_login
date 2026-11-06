@@ -39,15 +39,36 @@ internal static class NativeSmoke
                     Check(Convert.ToString(form.Grid.Rows[1].Cells["Note"].Value) == "", "Empty note has no fallback");
                     var currentId = form.Data.CurrentAccountId;
                     var nextAccount = form.Data.Accounts[27];
+                    var previousLogin = nextAccount.LastLoginAt;
+                    form.ApplySteamStatus(0, nextAccount.Id, nextAccount.Username, "stopping", "正在退出 Steam…");
+                    Check(form.LoginInProgress, "Login progress is visible before Steam starts");
+                    form.ApplySteamStatus(0, nextAccount.Id, nextAccount.Username, "waiting", "等待 Steam 验证…");
+                    Check(form.LoginInProgress && nextAccount.LastLoginAt == previousLogin && form.Data.CurrentAccountId == currentId, "Starting Steam is not recorded as a successful login");
+                    form.ApplySteamStatus(0, nextAccount.Id, nextAccount.Username, "timeout", "等待超时");
+                    Check(!form.LoginInProgress && nextAccount.LastLoginAt == previousLogin, "Timeout stops progress without recording success");
+                    form.ApplySteamStatus(0, nextAccount.Id, nextAccount.Username, "waiting", "等待 Steam 验证…");
+                    form.ApplySteamStatus(-1, nextAccount.Id, nextAccount.Username, "authenticated", "旧任务");
+                    Check(form.LoginInProgress && nextAccount.LastLoginAt == previousLogin, "Late result from old login cannot change progress or login time");
                     using (var other = new Form { Text = "Foreground regression fixture" }) {
                         other.Show(); other.Activate(); Application.DoEvents();
-                        form.ApplyCurrentSession(nextAccount.Id); Application.DoEvents();
+                        form.ApplySteamStatus(0, nextAccount.Id, nextAccount.Username, "authenticated", "Steam 会话已确认"); Application.DoEvents();
+                        Check(!form.LoginInProgress && nextAccount.LastLoginAt > previousLogin, "Only confirmed target session records successful login and stops progress");
                         Check(Form.ActiveForm == other && !form.TopMost, "Session refresh must not steal foreground or set topmost");
                         var activeRow = form.Grid.Rows.Cast<DataGridViewRow>().Single(r => (r.Tag as AccountRecord)?.Id == nextAccount.Id);
                         Check(Convert.ToString(activeRow.Cells["Source"].Value).Contains("当前"), "Later login changes current marker without manual refresh");
                         Check(activeRow.DefaultCellStyle.BackColor != Color.Empty && activeRow.DefaultCellStyle.SelectionBackColor != Color.Empty, "Current row stays highlighted even when selected");
                         other.Close();
                     }
+                    var renamedAccount = form.Data.Accounts[26];
+                    var originalUsername = renamedAccount.Username;
+                    var originalLogin = renamedAccount.LastLoginAt;
+                    renamedAccount.Username = "renamed-fixture";
+                    form.ApplySteamStatus(0, renamedAccount.Id, originalUsername, "authenticated", "旧账号名的登录结果");
+                    Check(renamedAccount.LastLoginAt == originalLogin && form.Data.CurrentAccountId == nextAccount.Id, "Renaming an account while waiting prevents old target from recording success");
+                    renamedAccount.Username = originalUsername;
+                    var confirmedLogin = nextAccount.LastLoginAt;
+                    form.ApplySteamStatus(0, nextAccount.Id, nextAccount.Username, "completed", "窗口处理完成");
+                    Check(nextAccount.LastLoginAt == confirmedLogin, "Post-login window handling does not record a second login");
                     form.ApplyCurrentSession("");
                     Check(form.Grid.Rows.Cast<DataGridViewRow>().All(r => !Convert.ToString(r.Cells["Source"].Value).Contains("当前")), "Logout clears marker");
                     form.ApplyCurrentSession(currentId);

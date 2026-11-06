@@ -10,6 +10,10 @@ namespace SteamLoginLite.Services
     {
         public string SteamId { get; set; }
         public string Username { get; set; }
+        public bool RememberPassword { get; set; }
+        public bool AutoLogin { get; set; }
+        public bool AllowAutoLogin { get; set; }
+        public bool MostRecent { get; set; }
         public bool CanUseSavedLogin { get; set; }
     }
 
@@ -36,9 +40,15 @@ namespace SteamLoginLite.Services
                 var name = SteamVdfConfig.ReadValue(content, path, "AccountName").Trim();
                 if (name.Length == 0) continue;
                 if (!usernames.Add(name)) throw new InvalidDataException("Steam 登录记录包含重复账号名，已停止同步。");
+                var autoLogin = SteamVdfConfig.ReadOptionalValue(content, path, "AutoLogin");
+                var allowAutoLogin = SteamVdfConfig.ReadOptionalValue(content, path, "AllowAutoLogin");
+                var selected = (autoLogin ?? allowAutoLogin) == "1";
+                var remembered = SteamVdfConfig.ReadValue(content, path, "RememberPassword") == "1";
                 accounts.Add(new SteamLocalAccount { SteamId = id, Username = name,
-                    CanUseSavedLogin = SteamVdfConfig.ReadValue(content, path, "AllowAutoLogin") == "1"
-                        && SteamVdfConfig.ReadValue(content, path, "RememberPassword") == "1" });
+                    RememberPassword = remembered, AutoLogin = selected,
+                    AllowAutoLogin = allowAutoLogin == null ? selected : allowAutoLogin == "1",
+                    MostRecent = (SteamVdfConfig.ReadOptionalValue(content, path, "MostRecent") ?? (selected ? "1" : "0")) == "1",
+                    CanUseSavedLogin = remembered });
             }
             return accounts;
         }
@@ -50,7 +60,13 @@ namespace SteamLoginLite.Services
             if (target == null || !target.CanUseSavedLogin)
                 throw new InvalidOperationException("本机没有可用的已记住登录记录，请先在 Steam 登录并勾选记住我，或编辑账号补充密码。");
             foreach (var account in accounts)
-                content = SteamVdfConfig.EnsureValue(content, new[] { "users", account.SteamId }, "MostRecent", account == target ? "1" : "0");
+            {
+                var path = new[] { "users", account.SteamId };
+                var selected = account == target ? "1" : "0";
+                content = SteamVdfConfig.EnsureValue(content, path, "AutoLogin", selected);
+                content = SteamVdfConfig.EnsureValue(content, path, "AllowAutoLogin", "1");
+                content = SteamVdfConfig.EnsureValue(content, path, "MostRecent", selected);
+            }
             return content;
         }
 
@@ -58,19 +74,22 @@ namespace SteamLoginLite.Services
         {
             var path = RecordPath(steamPath);
             var original = File.ReadAllBytes(path);
-            var bom = original.Length >= 3 && original[0] == 239 && original[1] == 187 && original[2] == 191;
-            var content = new UTF8Encoding(false, true).GetString(original, bom ? 3 : 0, original.Length - (bom ? 3 : 0));
+            var content = SteamVdfConfig.DecodeUtf8(original);
             var updated = SelectRememberedAccount(content, username);
-            if (content == updated) return;
-            var temp = path + ".steam-login-lite.tmp";
-            try
+            var configPath = Path.Combine(Path.GetDirectoryName(path), "config.vdf");
+            byte[] configOriginal = null;
+            string configUpdated = null;
+            if (File.Exists(configPath))
             {
-                File.WriteAllText(temp, updated, new UTF8Encoding(bom));
-                if (!File.Exists(path + ".steam-login-lite.bak")) File.Copy(path, path + ".steam-login-lite.bak");
-                if (!original.SequenceEqual(File.ReadAllBytes(path))) throw new IOException("Steam 登录记录正在变化，请重试。");
-                File.Replace(temp, path, null, true);
+                configOriginal = File.ReadAllBytes(configPath);
+                configUpdated = SteamVdfConfig.DecodeUtf8(configOriginal);
+                // Validate both documents before writing. Steam normally wraps these
+                // nodes in InstallConfigStore; accept unwrapped WebStorage too.
+                configUpdated = SteamVdfConfig.EnsureValueInExistingBlock(configUpdated, new[] { "InstallConfigStore", "WebStorage", "Auth" }, "AlwaysShowUserChooser", "0");
+                configUpdated = SteamVdfConfig.EnsureValueInExistingBlock(configUpdated, new[] { "WebStorage", "Auth" }, "AlwaysShowUserChooser", "0");
             }
-            finally { if (File.Exists(temp)) File.Delete(temp); }
+            SteamVdfConfig.WriteUpdatedFile(path, original, updated);
+            if (configOriginal != null) SteamVdfConfig.WriteUpdatedFile(configPath, configOriginal, configUpdated);
         }
     }
 }

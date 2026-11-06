@@ -1,14 +1,55 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading;
+using Microsoft.Win32;
 using SteamLoginLite.Services;
 using SteamLoginLite.Models;
 
 class SessionTest
 {
+    [DllImport("shell32.dll", SetLastError = true)]
+    static extern IntPtr CommandLineToArgvW([MarshalAs(UnmanagedType.LPWStr)] string commandLine, out int count);
+    [DllImport("kernel32.dll")]
+    static extern IntPtr LocalFree(IntPtr pointer);
     static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
     static void Main()
     {
+        var registryPath = @"Software\SteamLoginLite.Tests\" + Guid.NewGuid().ToString("N");
+        try {
+            using (var key = Registry.CurrentUser.CreateSubKey(registryPath)) {
+                key.SetValue("Unrelated", "preserved");
+                key.SetValue("RememberPassword", 0, RegistryValueKind.DWord);
+                SteamService.SetAutoLoginUser(key, "fixture-user");
+                Check((string)key.GetValue("AutoLoginUser") == "fixture-user" && key.GetValueKind("AutoLoginUser") == RegistryValueKind.String, "Standard Steam user is selected with string type");
+                Check((string)key.GetValue("AutoLoginUser_steamchina") == "fixture-user", "Steam China compatibility key follows target");
+                Check((int)key.GetValue("RememberPassword") == 1 && key.GetValueKind("RememberPassword") == RegistryValueKind.DWord, "Global remember switch uses DWORD");
+                SteamService.SetAutoLoginUser(key, "next-user");
+                Check((string)key.GetValue("AutoLoginUser") == "next-user" && (string)key.GetValue("Unrelated") == "preserved", "Reselection preserves unrelated registry values");
+            }
+        } finally { Registry.CurrentUser.DeleteSubKeyTree(registryPath, false); }
+        var arguments = new[] { "", "plain", @"a\b", "with spaces", "with\ttab", "with\"quote", "中文🔑", "trailing\\", "slash\\\"quote", "two\\\\\"slashes" };
+        foreach (var argument in arguments) {
+            int count;
+            var parsedArgs = CommandLineToArgvW("steam.exe " + SteamService.QuoteArgument(argument), out count);
+            Check(parsedArgs != IntPtr.Zero, "Windows argument parser available");
+            try { Check(count == 2 && Marshal.PtrToStringUni(Marshal.ReadIntPtr(parsedArgs, IntPtr.Size)) == argument, "Password characters round-trip through Windows argv"); }
+            finally { LocalFree(parsedArgs); }
+        }
+        var fakeExe = Path.GetTempFileName();
+        try {
+            var canceled = new CancellationToken(true);
+            foreach (var remembered in new[] { false, true }) {
+                var service = new SteamService();
+                var rejected = false;
+                try {
+                    (remembered ? service.LaunchRememberedAsync(fakeExe, "fixture", new AppSettings(), canceled)
+                        : service.LaunchAsync(fakeExe, "fixture", "fixture-password", new AppSettings(), canceled)).GetAwaiter().GetResult();
+                } catch (OperationCanceledException) { rejected = true; }
+                Check(rejected, "Already canceled launch performs no process or Steam configuration operations");
+            }
+        } finally { File.Delete(fakeExe); }
         var settings = new AppSettings();
         Check(SteamService.ShouldCloseSteamWindow("特惠", settings), "Actual Steam promotion title must close");
         Check(SteamService.ShouldCloseSteamWindow("好友与聊天", settings), "Friends window must close");
@@ -100,5 +141,6 @@ class SessionTest
         Check(legacy.Accounts.Count == 1, "Null legacy field repaired safely");
         Console.WriteLine("PASS: delete/restart suppression, credential removal, case-insensitive manual add/import, batch delete, explicit restore and legacy compatibility.");
         Console.WriteLine("PASS: no-MostRecent VDF, active-session matching, stale registry, first login, wrong-account rejection.");
+        Console.WriteLine("PASS: isolated registry selection, DWORD remember flag, Windows password argument round-trip and canceled launch.");
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace SteamLoginLite.Services
@@ -19,25 +20,33 @@ namespace SteamLoginLite.Services
         {
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
             var bytes = File.ReadAllBytes(path);
-            var hasUtf8Bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
-            var utf8 = new UTF8Encoding(false, true);
-            var original = utf8.GetString(bytes, hasUtf8Bom ? 3 : 0, bytes.Length - (hasUtf8Bom ? 3 : 0));
+            var original = DecodeUtf8(bytes);
             var updated = EnsureValue(original, new[] { root, "system", "news" }, "NotifyAvailableGames", disableNews ? "0" : "1");
             updated = EnsureValue(updated, new[] { root, "friends" }, "SignIntoFriends", disableFriends ? "0" : "1");
             if (openLibrary.HasValue)
                 updated = EnsureValue(updated, new[] { root, "Software", "Valve", "Steam" }, "SteamDefaultDialog", openLibrary.Value ? "#app_games" : "#store");
-            if (string.Equals(original, updated, StringComparison.Ordinal)) return true;
+            WriteUpdatedFile(path, bytes, updated);
+            return true;
+        }
 
+        internal static string DecodeUtf8(byte[] bytes)
+        {
+            var offset = HasUtf8Bom(bytes) ? 3 : 0;
+            return new UTF8Encoding(false, true).GetString(bytes, offset, bytes.Length - offset);
+        }
+
+        internal static void WriteUpdatedFile(string path, byte[] original, string updated)
+        {
+            if (string.Equals(DecodeUtf8(original), updated, StringComparison.Ordinal)) return;
             var temp = path + ".steam-login-lite.tmp";
             var backup = path + ".steam-login-lite.bak";
             try
             {
-                File.WriteAllText(temp, updated, new UTF8Encoding(hasUtf8Bom));
+                File.WriteAllText(temp, updated, new UTF8Encoding(HasUtf8Bom(original)));
                 if (!File.Exists(backup)) File.Copy(path, backup, false);
-                if (!Convert.ToBase64String(File.ReadAllBytes(path)).Equals(Convert.ToBase64String(bytes), StringComparison.Ordinal))
+                if (!File.ReadAllBytes(path).SequenceEqual(original))
                     throw new IOException("Steam 配置正在变化，将稍后重试。");
                 File.Replace(temp, path, null, true);
-                return true;
             }
             finally
             {
@@ -45,19 +54,67 @@ namespace SteamLoginLite.Services
             }
         }
 
+        private static bool HasUtf8Bom(byte[] bytes) => bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+
         internal static string ReadValue(string content, string[] blockPath, string key)
+            => ReadOptionalValue(content, blockPath, key) ?? "";
+
+        internal static string ReadOptionalValue(string content, string[] blockPath, string key)
         {
             var block = ResolveBlock(content, blockPath);
             MemberSpan member;
             var status = FindDirectMember(content, block, key, out member);
             if (status == FindMemberStatus.Invalid || (status == FindMemberStatus.Found && member.IsBlock))
                 throw new InvalidDataException("Steam 登录记录结构无效。");
-            if (status == FindMemberStatus.NotFound) return "";
+            if (status == FindMemberStatus.NotFound) return null;
             var index = member.ValueStart;
             string value; int start, length;
             if (!TryReadQuoted(content, ref index, content.Length, out value, out start, out length))
                 throw new InvalidDataException("Steam 登录记录结构无效。");
             return value;
+        }
+
+        internal static string EnsureValueInExistingBlock(string content, string[] blockPath, string key, string value)
+        {
+            var parent = new BlockSpan(-1, content.Length);
+            ValidateMembers(content, parent);
+            foreach (var name in blockPath)
+            {
+                MemberSpan member;
+                var status = FindDirectMember(content, parent, name, out member);
+                if (status == FindMemberStatus.Invalid || (status == FindMemberStatus.Found && !member.IsBlock))
+                    throw new InvalidDataException("Steam 配置节点结构无效：" + name);
+                if (status == FindMemberStatus.NotFound) return content;
+                parent = new BlockSpan(member.OpenBrace, member.CloseBrace);
+            }
+            return EnsureValue(content, blockPath, key, value);
+        }
+
+        private static void ValidateMembers(string content, BlockSpan parent)
+        {
+            var index = parent.OpenBrace + 1;
+            while (index < parent.CloseBrace)
+            {
+                SkipTrivia(content, ref index, parent.CloseBrace);
+                if (index >= parent.CloseBrace) break;
+                string name; int start, length;
+                if (!TryReadQuoted(content, ref index, parent.CloseBrace, out name, out start, out length))
+                    throw new InvalidDataException("Steam 配置结构无效。");
+                SkipTrivia(content, ref index, parent.CloseBrace);
+                if (index < parent.CloseBrace && content[index] == '{')
+                {
+                    var end = FindMatchingBrace(content, index, parent.CloseBrace);
+                    if (end < 0) throw new InvalidDataException("Steam 配置结构无效。");
+                    ValidateMembers(content, new BlockSpan(index, end));
+                    index = end + 1;
+                }
+                else
+                {
+                    string ignored;
+                    if (!TryReadQuoted(content, ref index, parent.CloseBrace, out ignored, out start, out length))
+                        throw new InvalidDataException("Steam 配置结构无效。");
+                }
+            }
         }
 
         internal static string[] ChildBlocks(string content, params string[] blockPath)
