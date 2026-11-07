@@ -1,18 +1,18 @@
-# Steam Login Lite 3.0.3 · 轻量原生版
+# Steam Login Lite 3.0.4 · 轻量原生版
 
-> 最后更新：2026-11-06 | 版本：3.0.3
+> 最后更新：2026-11-07 | 版本：3.0.4
 
 使用 Windows 原生 WinForms（.NET Framework 4.8），查询使用系统 WebView2。没有 Electron、React、Ant Design、Node.js、内置 Chromium、在线更新或托盘常驻。
 
 ## 使用
 
-下载 `SteamLoginLite-3.0.3-win-x64.zip`，完整解压后双击 `SteamLoginLite.exe`。绿色包仅 6 个文件，需放在一起，无需安装本工具或 Node.js。
+下载 `SteamLoginLite-3.0.4-win-x64.zip`，完整解压后双击 `SteamLoginLite.exe`。绿色包仅 6 个文件，需放在一起，无需安装本工具或 Node.js。
 
 Windows 10/11 x64，需 .NET Framework 4.8（最新 Windows 通常已有）。首次查询如果没有 WebView2 Evergreen Runtime，工具会从 Microsoft 官方地址下载、验证安装器签名并安装，再继续当前查询；已有运行时时不重复安装。安装失败可点击查询窗口“重试”，或在偏好设置中检测/安装。WebView2 是单独安装的系统共享浏览器组件，占用系统磁盘，不放在绿色包中。安装可能需要网络及 Windows 授权。
 
 ## 保留的功能
 
-- 账号添加、编辑、复制、备注、删除，以及批量导入预览；同名本机账号只补全缺失资料。
+- 账号添加、编辑、复制、备注、删除，以及批量导入预览；支持“账号-密码”及“账号-密码-游戏昵称”，分隔符为一个或多个连续的 `-`，可混用不同数量；兼容原有邮箱四段、五段格式。同名本机账号只补全缺失资料。
 - 搜索账号、昵称、备注或邮箱，状态筛选，账号/等级/最近查询排序，20/50/100 条分页。
 - 勾选单条、选择当前页、跨页全选筛选结果、取消选择、批量查询和删除。
 - 备注独立显示在账号状态右侧，未设置备注则留空；生存等级同时显示阶位。
@@ -28,7 +28,7 @@ Windows 10/11 x64，需 .NET Framework 4.8（最新 Windows 通常已有）。�
 
 ## 数据与换版
 
-账号数据始终在 `%LOCALAPPDATA%\SteamLoginLite\accounts.json`。3.0.3 直接读取 2.x 及原生旧版的原有数据；删除程序目录、重新解压新 ZIP 不删除账号。同一 Windows 用户下密码继续可用，换电脑或用户需要重新填写。密码仍由 Windows DPAPI 保护。数据仍通过临时文件原子保存并保留 `.bak`；首次运行的旧目录迁移仍保留。读取失败时禁止覆盖原数据。
+账号数据始终在 `%LOCALAPPDATA%\SteamLoginLite\accounts.json`。3.0.4 直接读取 2.x 及原生旧版的原有数据；删除程序目录、重新解压新 ZIP 不删除账号。同一 Windows 用户下密码继续可用，换电脑或用户需要重新填写。密码仍由 Windows DPAPI 保护。数据仍通过临时文件原子保存并保留 `.bak`；首次运行的旧目录迁移仍保留。读取失败时禁止覆盖原数据。
 
 换版前关闭旧程序，建议备份 `%LOCALAPPDATA%\SteamLoginLite`，再运行新目录内 EXE。WebView2 查询缓存位于该用户目录下的 `WebView2` 子目录，偏好设置可单独清理缓存，不删除账号。首次安装器临时下载在 `installer` 子目录，安装后清理。
 
@@ -41,9 +41,10 @@ dotnet build SteamLoginLite.csproj -c Release
 ./scripts/build.ps1
 ```
 
-3.0.3 ZIP 为 486,945 字节，解压 1,122,403 字节。正式包严格只包含 EXE、配置、三个 WebView2 接口/加载 DLL 和使用说明。构建脚本核对 6 个文件且解压大小不超过 5 MB；不打包浏览器、源码或缓存。
+正式包严格只包含 EXE、配置、三个 WebView2 接口/加载 DLL 和使用说明。构建脚本核对 6 个文件且解压大小不超过 5 MB；不打包浏览器、源码或缓存。
 
 ```powershell
+dotnet run --project tests/ImportParser/ImportParser.csproj -c Release
 dotnet run --project tests/QueryBatch/QueryBatch.csproj -c Release
 dotnet run --project tests/SteamPreferences/SteamPreferences.csproj -c Release
 dotnet run --project tests/SteamLocalAccounts/SteamLocalAccounts.csproj -c Release
@@ -56,6 +57,12 @@ dotnet run --project tests/NativeSmoke/NativeSmoke.csproj -c Release -- --query
 Windows CI 运行原生界面及真实 WebView2 夹具，不提交真实玩家查询、不读取真实账号。`--preview` 启动隔离示例界面；WinForms 正式运行及预览只支持 Windows，macOS 可编译检查和运行纯逻辑测试。旧 Electron 实现在历史标签 v2.1.8 中保留。
 
 自动测试不能代替真实 Steam 登录、远程网站及验证码验收。迁移功能清单见 [原生迁移说明](docs/native-migration.md)，账号切换的配置兼容、上游依据和验证边界见 [Steam 切号实现](docs/steam-switching.md)。
+
+### 3.0.4 批量导入修复
+
+每行支持 `账号-密码` 或 `账号----密码----游戏昵称`，一个或多个连续的 `-` 均可分隔，同一行可以混用不同数量。第三段直接作为游戏昵称；省略或留空时使用账号名作为查询标识。原有 `账号-密码-邮箱-邮箱密码[-游戏昵称]` 及中文标签格式继续兼容。预览通过后确认导入，错误行会阻止确认。
+
+在分隔格式中，连续的 `-` 都视为分隔符；字段本身含 `-` 时可使用中文标签格式，例如 `账号player密码pass-word游戏昵称nick-name`。
 
 ### 3.0.3 Steam 切号与进度提示
 

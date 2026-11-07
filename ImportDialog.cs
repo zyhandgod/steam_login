@@ -21,7 +21,7 @@ namespace SteamLoginLite
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12), ColumnCount = 1, RowCount = 5 };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 55)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.Controls.Add(new Label { AutoSize = true, Text = "每行一个账号，支持两段、四段或五段：\r\n账号----密码[----邮箱----邮箱密码[----游戏昵称]]\r\n同名本机账号只补充缺失信息，不覆盖已有内容。" }, 0, 0);
+            root.Controls.Add(new Label { AutoSize = true, Text = "每行一个账号，用一个或多个连续的 - 分隔。\r\n账号----密码 或 账号----密码----游戏昵称\r\n兼容旧格式：账号----密码----邮箱----邮箱密码[----游戏昵称]\r\n字段含 - 时可用中文标签格式（见使用说明）。\r\n同名本机账号只补充缺失信息，不覆盖已有内容。" }, 0, 0);
             root.Controls.Add(_text, 0, 1);
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
             var parse = new Button { Text = "解析预览", AutoSize = true }; actions.Controls.Add(parse); actions.Controls.Add(_summary); root.Controls.Add(actions, 0, 2);

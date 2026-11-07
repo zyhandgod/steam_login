@@ -12,9 +12,12 @@ internal static class Program
         Check("user--pass--mail@example.com--123456", "user", "pass", "user", "mail@example.com");
         Check("账号user密码pass邮箱账号mail\\@example.com邮箱密码123456邮箱地址example.com", "user", "pass", "user", "mail@example.com");
         Check("fxols54967--sltm34244M", "fxols54967", "sltm34244M", "fxols54967", "");
+        Check("player-password", "player", "password", "player", "");
+        Check("player----password----nickname", "player", "password", "nickname", "");
+        Check("player-password---nickname", "player", "password", "nickname", "");
         Check("账号fxols54967密码sltm34244M", "fxols54967", "sltm34244M", "fxols54967", "");
 
-        var invalid = ImportParser.Parse("only-one-part");
+        var invalid = ImportParser.Parse("onlyonepart");
         if (invalid.Count != 1 || invalid[0].IsValid) return Fail("invalid input accepted");
 
         var many = ImportParser.Parse("a----b----a@b.com----c\r\nd----e----d@e.com----f");
@@ -30,7 +33,7 @@ internal static class Program
         CheckPubgPlusRequests();
         CheckSteamPopupPreferences();
 
-        Console.WriteLine("Smoke tests passed: import 8/8, status 5/5, PUBG.PLUS responses 6/6, requests 5/5, Steam popup preferences 7/7");
+        Console.WriteLine("Smoke tests passed: flexible import formats, status 5/5, PUBG.PLUS responses 6/6, requests 5/5, Steam popup preferences 7/7");
         return 0;
     }
 

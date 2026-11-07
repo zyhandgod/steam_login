@@ -14,6 +14,8 @@ jobs:
           dotnet-version: 8.0.x
       - name: 核心查询与账号测试
         run: |
+          dotnet run --project tests/ImportParser/ImportParser.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/QueryBatch/QueryBatch.csproj -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/SteamPreferences/SteamPreferences.csproj -c Release

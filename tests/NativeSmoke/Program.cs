@@ -37,6 +37,27 @@ internal static class NativeSmoke
                     Check(Convert.ToString(form.Grid.Rows[0].Cells["Source"].Value).Contains("当前"), "Verified current marker");
                     Check(Convert.ToString(form.Grid.Rows[1].Cells["Source"].Value).Contains("本机"), "Local source marker");
                     Check(Convert.ToString(form.Grid.Rows[1].Cells["Note"].Value) == "", "Empty note has no fallback");
+                    using (var importer = new ImportDialog()) {
+                        importer.Show(form);
+                        var layout = importer.Controls.OfType<TableLayoutPanel>().Single();
+                        var input = (TextBox)layout.GetControlFromPosition(0, 1);
+                        var actions = (FlowLayoutPanel)layout.GetControlFromPosition(0, 2);
+                        var parse = actions.Controls.OfType<Button>().Single();
+                        var buttons = (FlowLayoutPanel)layout.GetControlFromPosition(0, 4);
+                        var accept = buttons.Controls.OfType<Button>().Single(b => b.Text == "导入账号");
+                        input.Text = "first-password\r\nsecond----password---游戏昵称";
+                        parse.PerformClick();
+                        Check(importer.Accounts.Count == 2 && importer.Accounts.All(a => a.IsValid) && accept.Enabled, "Import dialog accepts two and three fields with mixed separator widths");
+                        Check(importer.Accounts[0].GameId == "first" && importer.Accounts[1].GameId == "游戏昵称" && importer.Accounts[1].Email == "", "Import preview maps the third field to nickname");
+                        input.Text = "invalid\nsecond-password-nickname";
+                        Check(!accept.Enabled && importer.Accounts.Count == 0, "Editing parsed import invalidates the previous preview");
+                        parse.PerformClick();
+                        Check(!accept.Enabled && !importer.Accounts[0].IsValid && importer.Accounts[0].LineNumber == 1, "Invalid import row blocks confirmation and retains its line number");
+                        input.Text = "first-password\nsecond----password---游戏昵称";
+                        parse.PerformClick(); accept.PerformClick();
+                        Check(importer.DialogResult == DialogResult.OK, "Valid import preview can be confirmed");
+                        importer.Close();
+                    }
                     var currentId = form.Data.CurrentAccountId;
                     var nextAccount = form.Data.Accounts[27];
                     var previousLogin = nextAccount.LastLoginAt;

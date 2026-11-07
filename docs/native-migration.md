@@ -1,6 +1,6 @@
 # 原生轻量版迁移
 
-> 最后更新：2026-11-06 | 版本：3.0.3
+> 最后更新：2026-11-07 | 版本：3.0.4
 
 目标：用 .NET Framework 4.8 WinForms + 系统 WebView2 Evergreen 取代 Electron/React/Ant Design。正式 ZIP 仅包含本机程序、WebView2 接口库和说明，不携带 Chromium 或 Node 依赖。首次查询若无 WebView2，下载并校验 Microsoft 官方安装器，安装后继续同一查询。
 
@@ -34,3 +34,11 @@
 底部原生 Marquee 进度条显示退出、准备、启动和等待验证阶段，确认、失败、取消或超时后结束对应进度。`LastLoginAt` 由目标会话确认事件更新，启动 Steam 本身不记作登录成功。游戏库一次打开、当前账号高亮、已登录会话复用、密码后备及 DPAPI 保持。
 
 进程停止仍沿用 `CloseMainWindow → 等待 900ms → 必要时 Kill → 等待退出`，没有改为 Steam `-shutdown` 流程，也没有引入 Steam SDK、其他界面框架或离线模式界面。底层配置、保留差异及测试命令见 [Steam 切号实现](steam-switching.md)。
+
+## 3.0.4 批量导入
+
+分隔格式采用一个或多个连续 ASCII 连字符 `-` 分段，支持 2、3、4、5 段；每行可使用不同数量的连字符，字段两端空白会清理。两段映射账号和密码；三段的第三段映射 `GameId`（游戏昵称），不是邮箱。四段仍映射账号、密码、邮箱和邮箱密码；五段末尾为游戏昵称。省略昵称或末段留空时回退账号名。
+
+连续的连字符视为一个分隔符，不能表示中间的空字段；账号、密码仍为必填。在分隔格式中，字段值内的连字符也会被拆分；含连字符的密码或昵称可以使用原有中文标签格式，如 `账号player密码pass-word游戏昵称nick-name`。只有以“账号”起始并包含“密码”的行尝试标签格式，避免昵称中出现“账号密码”而误判整行。
+
+导入保留解析预览、原行号、错误行阻止确认、修改输入后重新解析和重复账号处理。新增 `tests/ImportParser` 纯逻辑回归，可用 `.NET SDK 8` 执行 `dotnet run --project tests/ImportParser/ImportParser.csproj -c Release`；Windows `NativeSmoke` 检查两段/三段预览、昵称列、错误拦截和确认流程。自动测试使用隔离夹具，不导入真实用户账号。
