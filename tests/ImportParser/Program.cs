@@ -26,6 +26,11 @@ internal static class ImportParserTests
         Check(emptyNickname.IsValid && emptyNickname.GameId == "player", "Empty optional nickname falls back to username");
         var nicknameWithLabels = ImportParser.Parse("player----password----账号密码测试").Single();
         Check(nicknameWithLabels.IsValid && nicknameWithLabels.GameId == "账号密码测试", "Nickname containing Chinese labels still uses separated format");
+        foreach (var source in new[] { "账号----密码----昵称", "账号 - 密码 - 昵称" })
+        {
+            var placeholders = ImportParser.Parse(source).Single();
+            Check(placeholders.IsValid && placeholders.Username == "账号" && placeholders.Password == "密码" && placeholders.GameId == "昵称", "Separated Chinese field names are not mistaken for labels");
+        }
 
         var four = ImportParser.Parse("player-password-mail\\@example.com-mailpass").Single();
         Check(four.IsValid && four.Email == "mail@example.com" && four.EmailPassword == "mailpass" && four.GameId == "player", "Original four-field email format");

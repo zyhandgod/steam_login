@@ -29,7 +29,9 @@ namespace SteamLoginLite.Services
             {
                 var line = lines[i].Trim();
                 if (line.Length == 0) continue;
-                var item = line.StartsWith("账号", StringComparison.Ordinal) && line.Contains("密码") ? ParseLabels(line) : ParseSeparated(line);
+                var labeled = line.StartsWith("账号", StringComparison.Ordinal) && line.Contains("密码")
+                    && !line.Substring(2).TrimStart().StartsWith("-", StringComparison.Ordinal);
+                var item = labeled ? ParseLabels(line) : ParseSeparated(line);
                 item.LineNumber = i + 1;
                 Validate(item);
                 result.Add(item);
